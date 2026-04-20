@@ -1125,7 +1125,7 @@ function startWave(){
   if(waveSpawning) return;
   waveSpawning=true;
   announceWave();
-  const count=5+waveNum*2; // ← КОЛИЧЕСТВО МИКРОБОВ: 5 = базовое кол-во на 1-й волне; *2 = прирост на каждую волну
+  const count=5+waveNum*1; // ← КОЛИЧЕСТВО МИКРОБОВ: 5 = базовое кол-во на 1-й волне; *1 = прирост на каждую волну
   let spawned=0;
   const iv=setInterval(()=>{
     if(!gameRunning){clearInterval(iv); waveSpawning=false; return;}
