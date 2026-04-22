@@ -1,0 +1,2213 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>🩺 Доктор vs Микробы</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body { background:#000; overflow:hidden; font-family:'Courier New', monospace; touch-action:none; }
+  canvas { display:block; cursor:none; }
+
+  /* ── HUD ── */
+  #hud { position:fixed; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+
+  #score-box {
+    position:fixed; top:14px; left:14px;
+    background:rgba(0,20,40,0.75); border:1px solid #00ffcc;
+    border-radius:8px; padding:6px 14px;
+    color:#00ffcc; font-size:16px; font-weight:700;
+    text-shadow:0 0 8px #00ffcc;
+    letter-spacing:1px;
+  }
+  #health-box {
+    position:fixed; top:14px; right:14px;
+    background:rgba(40,0,0,0.75); border:1px solid #ff3355;
+    border-radius:8px; padding:6px 14px;
+    color:#ff3355; font-size:16px; font-weight:700;
+    text-shadow:0 0 8px #ff3355;
+  }
+  #wave-box {
+    position:fixed; top:58px; left:14px;
+    color:#ffdd00; font-size:13px; font-weight:700;
+    text-shadow:0 0 6px #ffdd00; letter-spacing:2px;
+  }
+  #author-box {
+    position:fixed; top:58px; right:14px;
+    color:#00ffcc; font-size:13px; font-weight:700;
+    text-shadow:0 0 6px #00ffcc; letter-spacing:2px;
+  }
+  #ammo-box {
+    position:fixed; bottom:160px; right:20px;
+    color:#00ccff; font-size:13px; text-align:center;
+    text-shadow:0 0 6px #00ccff;
+  }
+
+  /* crosshair */
+  #crosshair {
+    position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:24px; height:24px; pointer-events:none;
+  }
+  #crosshair::before, #crosshair::after {
+    content:''; position:absolute; background:rgba(255,255,255,0.7);
+  }
+  #crosshair::before { width:2px; height:100%; left:50%; top:0; transform:translateX(-50%); }
+  #crosshair::after  { width:100%; height:2px; top:50%; left:0; transform:translateY(-50%); }
+
+  /* ── JOYSTICK ── */
+  #joystick-zone {
+    position:fixed; bottom:20px; left:20px;
+    width:130px; height:130px; pointer-events:auto;
+  }
+  #jbase {
+    width:130px; height:130px; border-radius:50%;
+    background:rgba(0,200,255,0.08);
+    border:2px solid rgba(0,200,255,0.3);
+  }
+  #jknob {
+    width:52px; height:52px; border-radius:50%;
+    background:radial-gradient(circle, rgba(0,255,220,0.6), rgba(0,150,180,0.3));
+    border:2px solid rgba(0,255,220,0.8);
+    position:absolute; top:39px; left:39px;
+    box-shadow:0 0 12px rgba(0,255,220,0.5);
+    transition:none;
+  }
+
+  /* ── FIRE BUTTON ── */
+  #fire-btn {
+    position:fixed; bottom:24px; right:24px;
+    width:88px; height:88px; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,60,60,0.8), rgba(180,0,0,0.6));
+    border:3px solid rgba(255,100,80,0.9);
+    box-shadow:0 0 20px rgba(255,0,0,0.4);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    color:#fff; font-size:11px; font-weight:700;
+    letter-spacing:1px; pointer-events:auto;
+    user-select:none;
+  }
+  #fire-btn span { font-size:24px; line-height:1; }
+
+  /* ── DAMAGE FLASH ── */
+  #damage-flash {
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    background:rgba(255,0,0,0); pointer-events:none;
+    transition:background 0.08s;
+  }
+
+  /* ── WAVE ANNOUNCE ── */
+  #wave-announce {
+    position:fixed; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    color:#ffdd00; font-size:36px; font-weight:900;
+    text-shadow:0 0 20px #ffdd00, 0 0 40px #ff8800;
+    letter-spacing:4px; pointer-events:none;
+    opacity:0; transition:opacity 0.3s;
+    text-align:center;
+  }
+
+  /* ── SCREENS ── */
+  .fullscreen {
+    position:fixed; top:0; left:0; width:100%; height:100%;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    text-align:center; z-index:100;
+  }
+  #start-screen {
+    background:linear-gradient(160deg, #000d1a 0%, #001a33 50%, #000a14 100%);
+  }
+  #start-screen h1 {
+    font-size:clamp(28px, 8vw, 46px);
+    color:#00ffcc; font-weight:900; letter-spacing:4px;
+    text-shadow:0 0 20px #00ffcc, 0 0 40px #00aa88;
+    margin-bottom:6px;
+  }
+  #start-screen .subtitle {
+    font-size:clamp(12px,4vw,18px); color:#007799;
+    letter-spacing:2px; margin-bottom:20px;
+  }
+  .emoji-row { font-size:52px; margin:10px 0 20px; }
+  .hint { font-size:13px; color:#337799; margin:4px 0; letter-spacing:1px; }
+  .hint strong { color:#00ccaa; }
+
+  .play-btn {
+    margin-top:24px;
+    background:linear-gradient(135deg, #00ffcc, #0077ff);
+    color:#000; border:none; border-radius:12px;
+    padding:14px 44px; font-size:18px; font-weight:900;
+    letter-spacing:3px; cursor:pointer;
+    box-shadow:0 0 24px rgba(0,255,200,0.4);
+    pointer-events:auto;
+  }
+  .play-btn:active { transform:scale(0.96); }
+
+  #gameover-screen {
+    background:rgba(0,0,0,0.92); display:none;
+  }
+  #gameover-screen h2 {
+    font-size:clamp(28px,8vw,48px); color:#ff2244;
+    font-weight:900; letter-spacing:3px;
+    text-shadow:0 0 20px #ff0000;
+    margin-bottom:10px;
+  }
+  #final-score {
+    font-size:clamp(20px,6vw,32px); color:#ffdd00;
+    text-shadow:0 0 12px #ffaa00; margin:8px 0 4px;
+  }
+  #final-wave {
+    font-size:16px; color:#7799bb; margin-bottom:20px; letter-spacing:2px;
+  }
+  .restart-btn {
+    background:linear-gradient(135deg, #ff2244, #cc0022);
+    color:#fff; border:none; border-radius:12px;
+    padding:14px 40px; font-size:16px; font-weight:900;
+    letter-spacing:2px; cursor:pointer;
+    box-shadow:0 0 20px rgba(255,0,40,0.4);
+    pointer-events:auto; margin-top:10px;
+  }
+  .restart-btn:active { transform:scale(0.96); }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<div id="start-screen" class="fullscreen">
+  <h1>🩺 ДОКТОР<br>VS МИКРОБЫ</h1>
+  <div class="subtitle">БИОЛАБОРАТОРИЯ / УРОВЕНЬ 1</div>
+  <div class="emoji-row">🦠🔬🧫</div>
+  <div class="hint"><strong>Джойстик</strong> — движение</div>
+  <div class="hint"><strong>Свайп справа</strong> — прицел</div>
+  <div class="hint"><strong>ОГОНЬ</strong> — уничтожить патогены</div>
+  <div class="hint" style="margin-top:8px"><strong>ПК:</strong> WASD — движение &nbsp;|&nbsp; Мышь — прицел &nbsp;|&nbsp; Click — выстрел &nbsp;|&nbsp; ESC — выход</div>
+  <button class="play-btn" id="start-btn">▶ ИГРАТЬ</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameover-screen" class="fullscreen">
+  <h2>☠ ЗАРАЖЕНИЕ</h2>
+  <div id="final-score">СЧЁТ: 0</div>
+  <div id="final-wave">ВОЛНА: 1</div>
+  <button class="restart-btn" id="restart-btn">🔄 СНОВА</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="score-box">СЧЁТ: <span id="score-val">0</span></div>
+  <div id="health-box">❤️ <span id="hp-val">3</span></div>
+  <div id="wave-box">ВОЛНА <span id="wave-val">1</span></div>
+  <div id="hatch-hint" style="
+    position:fixed; bottom:200px; left:50%; transform:translateX(-50%);
+    color:#00ffcc; font-size:12px; font-weight:700;
+    font-family:'Courier New',monospace; letter-spacing:1px;
+    text-shadow:0 0 8px #00ffcc; pointer-events:none;
+    opacity:0; transition:opacity 0.5s;
+  ">[ E ] — нажать кнопку люка</div>
+  <div id="crosshair"></div>
+  <div id="wave-announce" id="wave-announce"></div>
+</div>
+<div id="damage-flash"></div>
+
+<!-- JOYSTICK -->
+<div id="joystick-zone">
+  <div id="jbase"></div>
+  <div id="jknob"></div>
+</div>
+
+<!-- FIRE -->
+<div id="fire-btn"><span>💉</span>ОГОНЬ</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════
+//  AUDIO ENGINE  (Web Audio API — no files)
+// ═══════════════════════════════════════════
+let audioCtx = null;
+let masterGain = null;
+let musicGain  = null;
+let musicRunning = false;
+let ambientNodes = [];
+let ambientSeqTimer = null;
+
+function initAudio() {
+  if (audioCtx) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.72;
+  masterGain.connect(audioCtx.destination);
+}
+
+/* ── noise buffer helper ── */
+function noiseBuffer(sec) {
+  const sr = audioCtx.sampleRate;
+  const n  = Math.ceil(sr * sec);
+  const b  = audioCtx.createBuffer(1, n, sr);
+  const d  = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
+  return b;
+}
+
+/* ── SFX: SHOOT  (descending plasma zap) ── */
+function sndShoot() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // Main zap tone
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.38, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+  g.connect(masterGain);
+  const o = audioCtx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(1600, now);
+  o.frequency.exponentialRampToValueAtTime(180, now + 0.18);
+  o.connect(g); o.start(now); o.stop(now + 0.20);
+
+  // High crackle
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.15, now);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+  g2.connect(masterGain);
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer(0.07);
+  const hpf = audioCtx.createBiquadFilter();
+  hpf.type = 'highpass'; hpf.frequency.value = 4000;
+  src.connect(hpf); hpf.connect(g2); src.start(now);
+}
+
+/* ── SFX: HIT  (wet splat) ── */
+function sndHit() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.28, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+  g.connect(masterGain);
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer(0.13);
+  const f = audioCtx.createBiquadFilter();
+  f.type = 'bandpass'; f.frequency.value = 600; f.Q.value = 3;
+  src.connect(f); f.connect(g); src.start(now);
+}
+
+/* ── SFX: KILL  (pop + gooey drop) ── */
+function sndKill() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  // Noise burst
+  const gn = audioCtx.createGain();
+  gn.gain.setValueAtTime(0.5, now);
+  gn.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+  gn.connect(masterGain);
+  const src = audioCtx.createBufferSource();
+  src.buffer = noiseBuffer(0.28);
+  const lpf = audioCtx.createBiquadFilter();
+  lpf.type = 'lowpass';
+  lpf.frequency.setValueAtTime(4000, now);
+  lpf.frequency.exponentialRampToValueAtTime(80, now + 0.28);
+  src.connect(lpf); lpf.connect(gn); src.start(now);
+
+  // Descending blop
+  const go = audioCtx.createGain();
+  go.gain.setValueAtTime(0.22, now);
+  go.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  go.connect(masterGain);
+  const o = audioCtx.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(520, now);
+  o.frequency.exponentialRampToValueAtTime(55, now + 0.22);
+  o.connect(go); o.start(now); o.stop(now + 0.22);
+}
+
+/* ── SFX: DAMAGE  (harsh alarm buzz) ── */
+function sndDamage() {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.65, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+  g.connect(masterGain);
+
+  const o = audioCtx.createOscillator();
+  o.type = 'square';
+  o.frequency.setValueAtTime(240, now);
+  o.frequency.setValueAtTime(190, now + 0.12);
+  o.frequency.setValueAtTime(240, now + 0.24);
+  o.frequency.setValueAtTime(190, now + 0.36);
+  o.connect(g); o.start(now); o.stop(now + 0.46);
+
+  const gn = audioCtx.createGain();
+  gn.gain.setValueAtTime(0.35, now);
+  gn.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+  gn.connect(masterGain);
+  const ns = audioCtx.createBufferSource();
+  ns.buffer = noiseBuffer(0.35);
+  const bpf = audioCtx.createBiquadFilter();
+  bpf.type = 'bandpass'; bpf.frequency.value = 300; bpf.Q.value = 1.5;
+  ns.connect(bpf); bpf.connect(gn); ns.start(now);
+}
+
+/* ── SFX: WAVE START  (rising ominous siren) ── */
+function sndWaveStart(n) {
+  if (!audioCtx) return;
+  const now = audioCtx.currentTime;
+  const base = 90 + n * 18;
+
+  const g = audioCtx.createGain();
+  g.gain.setValueAtTime(0.5, now);
+  g.gain.setValueAtTime(0.5, now + 0.85);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+  g.connect(masterGain);
+
+  const o = audioCtx.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(base, now);
+  o.frequency.linearRampToValueAtTime(base * 2.6, now + 0.7);
+  o.frequency.setValueAtTime(base * 1.9, now + 0.7);
+  o.connect(g); o.start(now); o.stop(now + 1.3);
+
+  // dissonant fifth
+  const g2 = audioCtx.createGain();
+  g2.gain.setValueAtTime(0.2, now + 0.1);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+  g2.connect(masterGain);
+  const o2 = audioCtx.createOscillator();
+  o2.type = 'square';
+  o2.frequency.setValueAtTime(base * 1.5, now + 0.1);
+  o2.frequency.linearRampToValueAtTime(base * 3.8, now + 0.7);
+  o2.connect(g2); o2.start(now + 0.1); o2.stop(now + 1.3);
+}
+
+/* ── SFX: GAME OVER  (descending doom) ── */
+function sndGameOver() {
+  if (!audioCtx) return;
+  const seq = [440, 370, 311, 277, 185, 110];
+  seq.forEach((hz, i) => {
+    const t = audioCtx.currentTime + i * 0.26;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.55, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+    g.connect(masterGain);
+    const o = audioCtx.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = hz;
+    o.connect(g); o.start(t); o.stop(t + 0.5);
+  });
+}
+
+/* ═══════════════════════════════════════════
+   AMBIENT MUSIC  — tense sci-fi lab drone
+   5 layers: deep drone, detuned beating,
+   filtered noise pulse, eerie high overtone,
+   rhythmic heartbeat thud + arpeggio sequencer
+   ═══════════════════════════════════════════ */
+function startAmbientMusic() {
+  if (!audioCtx || musicRunning) return;
+  musicRunning = true;
+
+  musicGain = audioCtx.createGain();
+  musicGain.gain.value = 0.20;
+  musicGain.connect(masterGain);
+
+  /* Layer 1 — deep sawtooth drone  A1 = 55 Hz */
+  const d1 = audioCtx.createOscillator();
+  d1.type = 'sawtooth'; d1.frequency.value = 55;
+  const dg1 = audioCtx.createGain(); dg1.gain.value = 0.45;
+  const lfo1 = audioCtx.createOscillator(); lfo1.frequency.value = 0.25;
+  const lg1  = audioCtx.createGain();  lg1.gain.value = 0.18;
+  lfo1.connect(lg1); lg1.connect(dg1.gain);
+  const lpf1 = audioCtx.createBiquadFilter();
+  lpf1.type = 'lowpass'; lpf1.frequency.value = 380;
+  d1.connect(lpf1); lpf1.connect(dg1); dg1.connect(musicGain);
+  d1.start(); lfo1.start();
+  ambientNodes.push(d1, lfo1);
+
+  /* Layer 2 — detuned sine  → slow beating */
+  const d2 = audioCtx.createOscillator();
+  d2.type = 'sine'; d2.frequency.value = 55.7;
+  const dg2 = audioCtx.createGain(); dg2.gain.value = 0.35;
+  d2.connect(dg2); dg2.connect(musicGain);
+  d2.start(); ambientNodes.push(d2);
+
+  /* Layer 3 — filtered noise pulse  (eerie breathing) */
+  const nBuf = audioCtx.createBuffer(1, audioCtx.sampleRate * 6, audioCtx.sampleRate);
+  const nData = nBuf.getChannelData(0);
+  for (let i = 0; i < nData.length; i++) nData[i] = Math.random() * 2 - 1;
+  const nSrc = audioCtx.createBufferSource();
+  nSrc.buffer = nBuf; nSrc.loop = true;
+  const nFilt = audioCtx.createBiquadFilter();
+  nFilt.type = 'bandpass'; nFilt.frequency.value = 180; nFilt.Q.value = 10;
+  const nGain = audioCtx.createGain(); nGain.gain.value = 0;
+  const pLFO = audioCtx.createOscillator(); pLFO.frequency.value = 0.9;
+  const pLFOg = audioCtx.createGain(); pLFOg.gain.value = 0.22;
+  pLFO.connect(pLFOg); pLFOg.connect(nGain.gain);
+  nSrc.connect(nFilt); nFilt.connect(nGain); nGain.connect(musicGain);
+  nSrc.start(); pLFO.start();
+  ambientNodes.push(nSrc, pLFO);
+
+  /* Layer 4 — (удалён: высокий писк 880 Гц) */
+
+  /* Layer 5 — heartbeat thud  (gets faster per wave) */
+  function heartbeat() {
+    if (!musicRunning) return;
+    const playThud = () => {
+      const t = audioCtx.currentTime;
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.7, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+      g.connect(musicGain);
+      const o = audioCtx.createOscillator();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(130, t);
+      o.frequency.exponentialRampToValueAtTime(28, t + 0.20);
+      o.connect(g); o.start(t); o.stop(t + 0.20);
+    };
+    playThud();
+    // Double-thud
+    setTimeout(() => { if (musicRunning) playThud(); }, 150);
+    const bpm = Math.min(140, 52 + waveNum * 7);
+    setTimeout(heartbeat, (60000 / bpm));
+  }
+  heartbeat();
+
+  /* Sequencer — eerie chromatic arpeggios */
+  const eerieScale = [55, 58.27, 61.74, 65.41, 73.42, 77.78, 82.41, 87.31, 110];
+  let noteIdx = 0;
+  function playSeqNote() {
+    if (!musicRunning) return;
+    const freq = eerieScale[noteIdx % eerieScale.length];
+    noteIdx = (noteIdx + 1 + Math.floor(Math.random() * 3)) % eerieScale.length;
+    const t = audioCtx.currentTime;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(0.14, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 3.0);
+    g.connect(musicGain);
+    const o = audioCtx.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = freq;
+    // slight vibrato
+    const vibLFO = audioCtx.createOscillator();
+    vibLFO.frequency.value = 5.5;
+    const vibG = audioCtx.createGain(); vibG.gain.value = 0.8;
+    vibLFO.connect(vibG); vibG.connect(o.frequency);
+    vibLFO.start(t); vibLFO.stop(t + 3.0);
+    o.connect(g); o.start(t); o.stop(t + 3.0);
+    ambientNodes.push(o, vibLFO);
+
+    ambientSeqTimer = setTimeout(playSeqNote, 1200 + Math.random() * 2200);
+  }
+  ambientSeqTimer = setTimeout(playSeqNote, 1000);
+}
+
+function stopAmbientMusic() {
+  musicRunning = false;
+  clearTimeout(ambientSeqTimer);
+  ambientNodes.forEach(n => { try { n.stop(); } catch(e){} });
+  ambientNodes = [];
+  if (musicGain) { musicGain.disconnect(); musicGain = null; }
+}
+
+// ═══════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════
+let score=0, hp=3, waveNum=1, gameRunning=false; // ← HP ИГРОКА: hp=3 — стартовое здоровье доктора (сейчас неубиваем, но значение остаётся в HUD)
+let microbes=[], bullets=[], particles=[], debris=[];
+let lastShot=0, SHOOT_CD=180; // ← задержка между выстрелами (мс)
+let waveSpawning=false;
+let labObjects=[];          // объекты текущей локации — сбрасываются при смене
+let stationIntervals=[];    // мигающие интервалы
+let labCleanupFns=[];       // аудио-ноды и прочее
+
+// ── ЛЮКОВАЯ СИСТЕМА ──
+let hatchMesh=null, hatchBtnMesh=null, hatchBtnLight=null;
+let hatchOpen=false, hatchSlide=0, hatchChanging=false;
+let backHatchMesh=null, backHatchBtnMesh=null, backHatchOpen=false, backHatchSlide=0;
+
+// ═══════════════════════════════════════════
+//  THREE SETUP
+// ═══════════════════════════════════════════
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x000d1a, 0.028);
+
+const W=window.innerWidth, H=window.innerHeight;
+const camera = new THREE.PerspectiveCamera(72, W/H, 0.05, 80);
+camera.position.set(0, 1.65, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(W, H);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.setClearColor(0x000d1a);
+document.body.insertBefore(renderer.domElement, document.body.firstChild);
+
+// ═══════════════════════════════════════════
+//  LIGHTING
+// ═══════════════════════════════════════════
+scene.add(new THREE.AmbientLight(0x112244, 2.5));
+
+const sunLight = new THREE.DirectionalLight(0x88ccff, 1.5);
+sunLight.position.set(5, 12, 3);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(512, 512);
+scene.add(sunLight);
+
+// Coloured fill lights
+const makePointLight = (col, intensity, dist, x, y, z) => {
+  const l = new THREE.PointLight(col, intensity, dist);
+  l.position.set(x,y,z); scene.add(l); return l;
+};
+const labLight1 = makePointLight(0x00ffcc, 2.0, 18,  0, 5, 0);
+const labLight2 = makePointLight(0x0044ff, 1.2, 14, -8, 3,-8);
+const labLight3 = makePointLight(0x00aaff, 1.0, 14,  8, 3, 8);
+
+// ═══════════════════════════════════════════
+//  LAB ENVIRONMENT
+// ═══════════════════════════════════════════
+function sadd(obj){ scene.add(obj); labObjects.push(obj); return obj; }
+
+function clearLab(){
+  labObjects.forEach(o=>scene.remove(o));
+  labObjects=[];
+  stationIntervals.forEach(id=>clearInterval(id));
+  stationIntervals=[];
+  labCleanupFns.forEach(fn=>{try{fn();}catch(e){}});
+  labCleanupFns=[];
+  // Сбросить состояние люка
+  hatchMesh=null; hatchBtnMesh=null; hatchBtnLight=null;
+  hatchOpen=false; hatchSlide=0; hatchChanging=false;
+  backHatchMesh=null; backHatchBtnMesh=null; backHatchOpen=false; backHatchSlide=0;
+}
+
+function buildLab() {
+  // Тёмная sci-fi лаборатория
+  scene.fog = new THREE.FogExp2(0x000d1a, 0.028);
+  renderer.setClearColor(0x000d1a);
+  labLight1.color.set(0x00ffcc); labLight1.intensity=2.0;
+  labLight2.color.set(0x0044ff); labLight2.intensity=1.2;
+  labLight3.color.set(0x00aaff); labLight3.intensity=1.0;
+
+  const R=24;
+
+  // Floor — glossy tiles
+  const floorGeo = new THREE.PlaneGeometry(R*2, R*2, 20, 20);
+  const floorMat = new THREE.MeshStandardMaterial({
+    color:0x0d2233, roughness:0.3, metalness:0.6
+  });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI/2; floor.receiveShadow=true;
+  sadd(floor);
+
+  // Grid lines
+  const grid = new THREE.GridHelper(R*2, 30, 0x003355, 0x001a2a);
+  grid.position.y=0.01; sadd(grid);
+
+  // Ceiling
+  const ceilMat = new THREE.MeshStandardMaterial({color:0x08161f,roughness:1});
+  const ceil = new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2), ceilMat);
+  ceil.rotation.x=Math.PI/2; ceil.position.y=7; sadd(ceil);
+
+  // Walls
+  const wallMat = new THREE.MeshStandardMaterial({color:0x0a1e2e,roughness:0.8,metalness:0.1});
+  [[0,3.5,-R,0,0,0],[0,3.5,R,0,Math.PI,0],
+   [-R,3.5,0,0,Math.PI/2,0],[R,3.5,0,0,-Math.PI/2,0]].forEach(([x,y,z,rx,ry,rz])=>{
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(R*2,7),wallMat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz); sadd(m);
+  });
+
+  // Ceiling fluorescent lights
+  for(let i=-12; i<=12; i+=8) {
+    const lg=new THREE.Mesh(
+      new THREE.BoxGeometry(5,0.08,0.4),
+      new THREE.MeshBasicMaterial({color:0xaaffee})
+    );
+    lg.position.set(i, 6.9, 0); sadd(lg);
+    const pl=new THREE.PointLight(0x88ffee, 0.7, 12);
+    pl.position.set(i, 6.5, 0); sadd(pl);
+  }
+
+  // Lab benches
+  const benchPositions = [
+    [-10,0,-10],[ 10,0,-10],[-10,0,10],[10,0,10],
+    [ 0,0,-14],[ 0,0, 14],[-14,0,0],[14,0,0]
+  ];
+  benchPositions.forEach(([x,y,z]) => addBench(x,z));
+
+  // Pillars
+  [[-16,0,-16],[-16,0,16],[16,0,-16],[16,0,16]].forEach(([x,y,z])=>addPillar(x,z));
+
+  // Неоновая вывеска
+  addHatch('#00ffcc');
+}
+
+function addBench(x,z) {
+  const g=new THREE.Group(); sadd(g);
+  const top=new THREE.Mesh(
+    new THREE.BoxGeometry(3.5,0.1,1.2),
+    new THREE.MeshStandardMaterial({color:0x1a4a6a,roughness:0.2,metalness:0.5})
+  );
+  top.position.set(x,1.1,z); top.castShadow=true; sadd(top);
+  const legMat=new THREE.MeshStandardMaterial({color:0x112233,metalness:0.8,roughness:0.3});
+  [[-1.6,0,-0.5],[1.6,0,-0.5],[-1.6,0,0.5],[1.6,0,0.5]].forEach(([lx,ly,lz])=>{
+    const leg=new THREE.Mesh(new THREE.BoxGeometry(0.08,1.1,0.08),legMat);
+    leg.position.set(x+lx,0.55,z+lz); sadd(leg);
+  });
+  ['#00ff88','#ff3366','#4499ff','#ffcc00'].forEach((col,i)=>{
+    if(Math.random()>0.5) return;
+    const flask=new THREE.Mesh(
+      new THREE.CylinderGeometry(0.07,0.1,0.35,8),
+      new THREE.MeshStandardMaterial({color:new THREE.Color(col),transparent:true,opacity:0.75,roughness:0.1,metalness:0.1})
+    );
+    flask.position.set(x-1+i*0.65,1.28,z); flask.castShadow=true; sadd(flask);
+    const glow=new THREE.PointLight(new THREE.Color(col),0.4,1.5);
+    glow.position.set(x-1+i*0.65,1.25,z); sadd(glow);
+  });
+  if(Math.random()>0.3){
+    const scope=new THREE.Mesh(
+      new THREE.BoxGeometry(0.18,0.45,0.18),
+      new THREE.MeshStandardMaterial({color:0x223344,metalness:0.7,roughness:0.3})
+    );
+    scope.position.set(x+0.9,1.35,z); sadd(scope);
+  }
+}
+
+function addPillar(x,z) {
+  const m=new THREE.Mesh(
+    new THREE.CylinderGeometry(0.3,0.3,7,8),
+    new THREE.MeshStandardMaterial({color:0x0c1e2e,metalness:0.5,roughness:0.5})
+  );
+  m.position.set(x,3.5,z); sadd(m);
+}
+
+// ═══════════════════════════════════════════
+//  ВЫВЕСКА "Bakhodir A.A." — стиль HUD игры, одна стена
+// ═══════════════════════════════════════════
+function addNeonSign() {
+  const W = 512, H = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Прозрачный фон
+  ctx.clearRect(0, 0, W, H);
+
+  const text = 'Bakhodir A.A.';
+  ctx.font = "bold 62px 'Courier New', monospace";
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.letterSpacing = '2px';
+
+  // Свечение — несколько слоёв как у text-shadow в CSS
+  ctx.shadowColor = '#00ffcc';
+  ctx.shadowBlur  = 24;
+  ctx.fillStyle   = '#00ffcc';
+  for(let i = 0; i < 4; i++) ctx.fillText(text, W/2, H/2);
+
+  // Яркий центр
+  ctx.shadowBlur = 6;
+  ctx.fillStyle  = '#ccfff8';
+  ctx.fillText(text, W/2, H/2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  const sign = new THREE.Mesh(
+    new THREE.PlaneGeometry(6, 1.5),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true })
+  );
+
+  // Одна стена — северная, по центру, высота ~3.5м
+  sign.position.set(0, 3.5, -23.75);
+  sadd(sign);
+
+  // Точечный свет цвета HUD
+  const pl = new THREE.PointLight(0x00ffcc, 1.8, 8);
+  pl.position.set(0, 3.5, -22.8);
+  sadd(pl);
+
+  // Лёгкое дыхание — как живой экран
+  let ph = 0;
+  const anim = () => {
+    if (!gameRunning) { requestAnimationFrame(anim); return; }
+    ph += 0.03;
+    pl.intensity = 1.6 + Math.sin(ph * 1.4) * 0.2 + Math.sin(ph * 5.1) * 0.05;
+    requestAnimationFrame(anim);
+  };
+  anim();
+}
+
+// ═══════════════════════════════════════════
+//  ВЫБОР КАРТЫ ПО ВОЛНЕ
+// ═══════════════════════════════════════════
+function buildMap(n){
+  const list=[buildLab,buildHospital,buildStation,buildSubmarine,
+               buildTomb,buildArctic,buildVolcano,buildCyberpunk,
+               buildReactor,buildAlienHive];
+  list[(n-1)%list.length]();
+}
+
+// ═══════════════════════════════════════════
+//  ЛЮКОВАЯ ДВЕРЬ — на северной стене каждой карты
+// ═══════════════════════════════════════════
+// ── Атмосферный звук карты ──
+function startMapAtmosphere(type){
+  if(!audioCtx) return;
+  const nodes=[];
+  const mkN=(freq,q,gain,sec)=>{
+    const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*sec,audioCtx.sampleRate);
+    const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    const src=audioCtx.createBufferSource(); src.buffer=buf; src.loop=true;
+    const f=audioCtx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=freq; f.Q.value=q;
+    const g=audioCtx.createGain(); g.gain.value=gain;
+    src.connect(f); f.connect(g); g.connect(masterGain); src.start(); nodes.push(src);
+  };
+  const mkO=(freq,tp,gain,lfoHz,lfoAmt)=>{
+    const o=audioCtx.createOscillator(); o.type=tp; o.frequency.value=freq;
+    const g=audioCtx.createGain(); g.gain.value=gain;
+    if(lfoHz){ const l=audioCtx.createOscillator(); l.frequency.value=lfoHz;
+      const lg=audioCtx.createGain(); lg.gain.value=lfoAmt||gain*0.3;
+      l.connect(lg); lg.connect(g.gain); l.start(); nodes.push(l); }
+    o.connect(g); g.connect(masterGain); o.start(); nodes.push(o);
+  };
+  if(type==='vent')  { mkN(110,6,0.04,5); mkN(220,4,0.018,4); mkO(48,'sine',0.028,0.2,0.012); }
+  if(type==='reactor'){ mkN(55,10,0.05,6); mkN(110,5,0.022,4); mkO(48,'sawtooth',0.03,0.18,0.014); mkO(96,'sine',0.018,0.4,0.007); }
+  if(type==='deep')  { mkN(80,8,0.038,7); mkO(40,'sine',0.035,0.1,0.016); }
+  if(type==='alien') { mkN(160,12,0.028,3); mkN(80,6,0.032,5); mkO(55,'sawtooth',0.022,1.0,0.018); }
+  if(type==='arctic'){ mkN(200,5,0.022,6); mkO(55,'sine',0.018,0.07,0.009); }
+  if(type==='fire')  { mkN(300,4,0.036,3); mkN(100,3,0.028,4); }
+  labCleanupFns.push(()=>nodes.forEach(n=>{try{n.stop();}catch(e){}}));
+}
+
+// ── Мерцающие лампы ──
+function addFlickerLamps(positions, tint){
+  positions.forEach(([lx,ly,lz])=>{
+    const tube=new THREE.Mesh(new THREE.BoxGeometry(4.5,0.06,0.3),
+      new THREE.MeshBasicMaterial({color:new THREE.Color(tint)}));
+    tube.position.set(lx,ly,lz); sadd(tube);
+    const pl=new THREE.PointLight(new THREE.Color(tint),1.0,14);
+    pl.position.set(lx,ly-0.3,lz); sadd(pl);
+    if(Math.random()<0.45){
+      const id=setInterval(()=>{
+        if(Math.random()<0.07){
+          pl.intensity=0; tube.material.color.set(0x222222);
+          setTimeout(()=>{
+            pl.intensity=0.7+Math.random()*0.5; tube.material.color.set(new THREE.Color(tint));
+            if(Math.random()<0.3) setTimeout(()=>{
+              pl.intensity=0; tube.material.color.set(0x111111);
+              setTimeout(()=>{ pl.intensity=1.0; tube.material.color.set(new THREE.Color(tint)); },40);
+            },60);
+          },50+Math.random()*80);
+        }
+      },130);
+      stationIntervals.push(id);
+    }
+  });
+}
+
+// ── Надпись "Bakhodir A.A." на стене рядом с люком ──
+function addWallText(isBack){
+  const WZ = isBack ? 23.6 : -23.6;
+  const faceIn = isBack ? -1 : 1;
+  // Широкий канвас — буква B не обрезается
+  const W=768, H=160;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const cx=cv.getContext('2d');
+  cx.clearRect(0,0,W,H);
+  cx.font="bold 80px 'Courier New',monospace";
+  cx.textAlign='center'; cx.textBaseline='middle';
+  // широкое гало
+  cx.shadowColor='#00ffcc'; cx.shadowBlur=50;
+  cx.fillStyle='rgba(0,255,204,0.2)';
+  for(let i=0;i<5;i++) cx.fillText('Bakhodir A.A.',W/2,H/2);
+  // основной бирюзовый
+  cx.shadowBlur=18; cx.fillStyle='#00ffcc';
+  cx.fillText('Bakhodir A.A.',W/2,H/2);
+  // белый центр
+  cx.shadowBlur=5; cx.globalAlpha=0.55; cx.fillStyle='#ffffff';
+  cx.fillText('Bakhodir A.A.',W/2,H/2); cx.globalAlpha=1.0;
+
+  // Табличка прямо НАД люком по центру (x=0), смещена чуть выше
+  const sign=new THREE.Mesh(new THREE.PlaneGeometry(6.5,1.6),
+    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv),transparent:true}));
+  sign.position.set(0, 4.6, WZ+faceIn*0.15); sadd(sign);
+
+  const signLight=new THREE.PointLight(0x00ffcc, 1.2, 8);
+  signLight.position.set(0, 4.6, WZ+faceIn*1.0); sadd(signLight);
+}
+
+// ── Люк (вперёд N или назад S) ──
+function buildHatchAt(tint, isBack){
+  const HR=1.4, HY=2.2;
+  const WZ=isBack?23.6:-23.6;
+  const faceIn=isBack?-1:1; // направление внутрь комнаты
+  // отверстие
+  const hole=new THREE.Mesh(new THREE.CircleGeometry(HR,32),
+    new THREE.MeshBasicMaterial({color:0x000000,side:THREE.DoubleSide}));
+  // hole flush with wall (walls at z=±24)
+  const wallZ=isBack?24:-24;
+  // hole slightly behind wall plane to avoid z-fighting
+  hole.position.set(0,HY,wallZ-(faceIn*0.05)); hole.rotation.y=isBack?Math.PI:0; sadd(hole);
+  // рама — самосветящийся тор, виден из любой точки комнаты
+  const rimMat=new THREE.MeshStandardMaterial({color:new THREE.Color(tint),
+    metalness:0.9,roughness:0.05,emissive:new THREE.Color(tint),emissiveIntensity:3.0});
+  const rim=new THREE.Mesh(new THREE.TorusGeometry(HR,0.14,16,48),rimMat);
+  rim.position.set(0,HY,WZ+faceIn*0.1); sadd(rim);
+  // подсветочная пластина за рамой (тёмный круг + слабое свечение цвета карты)
+  const bgMat=new THREE.MeshBasicMaterial({color:0x000000});
+  const bg=new THREE.Mesh(new THREE.CircleGeometry(HR+0.18,32),bgMat);
+  bg.position.set(0,HY,WZ+faceIn*0.04); bg.rotation.y=isBack?Math.PI:0; sadd(bg);
+  // маяк — мощный пульсирующий свет, виден через весь зал
+  const beacon=new THREE.PointLight(new THREE.Color(tint), 5.0, 18);
+  beacon.position.set(0,HY,WZ+faceIn*1.5); sadd(beacon);
+  let bPh=Math.random()*Math.PI*2;
+  (function bpulse(){if(!gameRunning){requestAnimationFrame(bpulse);return;}
+    bPh+=0.05; beacon.intensity=4.0+Math.sin(bPh*2)*1.5; requestAnimationFrame(bpulse);})();
+  // болты
+  const boltMat=new THREE.MeshStandardMaterial({color:0x889999,metalness:0.95,roughness:0.1});
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2;
+    const bolt=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.14,6),boltMat);
+    bolt.rotation.z=Math.PI/2;
+    bolt.position.set(Math.cos(a)*(HR+0.02),HY+Math.sin(a)*(HR+0.02),WZ+faceIn*0.12);
+    sadd(bolt);
+  }
+  // диск — чистый металл без надписи, стоит БЛИЖЕ к игроку чем чёрное отверстие
+  const W=512,H=512;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const cx=cv.getContext('2d');
+  // стальной градиент
+  const grad=cx.createRadialGradient(W/2,H/2,10,W/2,H/2,W/2);
+  grad.addColorStop(0,'#3a4e4e'); grad.addColorStop(0.5,'#2a3c3c'); grad.addColorStop(1,'#141e1e');
+  cx.fillStyle=grad; cx.beginPath(); cx.arc(W/2,H/2,W/2,0,Math.PI*2); cx.fill();
+  // рифление — бирюзовые кольца
+  [0.28,0.52,0.76].forEach(r=>{
+    cx.strokeStyle='rgba(0,255,204,0.35)'; cx.lineWidth=5;
+    cx.beginPath(); cx.arc(W/2,H/2,r*W/2,0,Math.PI*2); cx.stroke();
+  });
+  // крестовина
+  [0,Math.PI/2].forEach(a=>{
+    cx.save(); cx.translate(W/2,H/2); cx.rotate(a);
+    cx.strokeStyle='rgba(0,255,204,0.25)'; cx.lineWidth=6;
+    cx.beginPath(); cx.moveTo(-W/2,0); cx.lineTo(W/2,0); cx.stroke(); cx.restore();
+  });
+  if(isBack){
+    // на заднем люке стрелка "назад"
+    cx.font="bold 36px 'Courier New',monospace";
+    cx.textAlign='center'; cx.textBaseline='middle';
+    cx.shadowColor='rgba(255,150,100,0.9)'; cx.shadowBlur=12;
+    cx.fillStyle='rgba(255,150,100,0.9)'; cx.fillText('◀  BACK',W/2,H/2);
+  }
+
+  // MeshBasicMaterial — диск всегда виден независимо от освещения
+  const disk=new THREE.Mesh(new THREE.CircleGeometry(HR*0.97,32),
+    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(cv)}));
+  disk.position.set(0,HY,WZ+faceIn*0.18); disk.rotation.y=isBack?Math.PI:0; sadd(disk);
+  // кнопка (на 1.5м вправо от люка, внутри комнаты)
+  const btnMat=new THREE.MeshStandardMaterial({color:new THREE.Color(tint),
+    emissive:new THREE.Color(tint),emissiveIntensity:1.0,roughness:0.2,metalness:0.3});
+  const btn=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.12,16),btnMat);
+  btn.rotation.x=Math.PI/2;
+  btn.position.set(HR+1.5,HY,WZ+faceIn*1.2); sadd(btn);
+  const base=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.08),
+    new THREE.MeshStandardMaterial({color:0x1a2a2a,metalness:0.8,roughness:0.2}));
+  base.position.set(HR+1.5,HY,WZ+faceIn*1.1); sadd(base);
+  const btnLight=new THREE.PointLight(new THREE.Color(tint),1.2,3);
+  btnLight.position.set(HR+1.5,HY,WZ+faceIn*1.6); sadd(btnLight);
+  // label
+  const lc=document.createElement('canvas'); lc.width=256; lc.height=64;
+  const lx=lc.getContext('2d'); lx.clearRect(0,0,256,64);
+  lx.font="bold 24px 'Courier New',monospace"; lx.textAlign='center'; lx.textBaseline='middle';
+  lx.shadowColor=tint; lx.shadowBlur=10; lx.fillStyle=tint;
+  lx.fillText(isBack?'[ E ] BACK':'[ E ] OPEN',128,32);
+  const lbl=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.22),
+    new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(lc),transparent:true}));
+  lbl.position.set(HR+1.5,HY+0.45,WZ+faceIn*1.2); sadd(lbl);
+  return {disk, btn, btnLight, btnMat, isOpen:false, slide:0};
+}
+
+function sndHatchClick(){
+  if(!audioCtx) return;
+  const now=audioCtx.currentTime;
+  const g=audioCtx.createGain(); g.gain.setValueAtTime(0.5,now);
+  g.gain.exponentialRampToValueAtTime(0.001,now+0.3); g.connect(masterGain);
+  const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*0.3,audioCtx.sampleRate);
+  const d=buf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  const src=audioCtx.createBufferSource(); src.buffer=buf;
+  const f=audioCtx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=500;
+  src.connect(f); f.connect(g); src.start(now);
+  const gk=audioCtx.createGain(); gk.gain.setValueAtTime(0.7,now);
+  gk.gain.exponentialRampToValueAtTime(0.001,now+0.07); gk.connect(masterGain);
+  const ok=audioCtx.createOscillator(); ok.type='square'; ok.frequency.value=160;
+  ok.connect(gk); ok.start(now); ok.stop(now+0.07);
+}
+
+function addHatch(tint){
+  const HR=1.4, HY=2.2;
+  // ── Передний люк (север z=-23.6) ──
+  const fwd=buildHatchAt(tint,false);
+  hatchMesh=fwd.disk; hatchBtnMesh=fwd.btn; hatchBtnLight=fwd.btnLight;
+  addWallText(false); // надпись Bakhodir A.A. рядом с передним люком
+  hatchBtnMesh.userData.onPress=()=>{
+    hatchOpen=!hatchOpen; sndHatchClick();
+    const nc=hatchOpen?0xff2200:new THREE.Color(tint);
+    hatchBtnMesh.material.color.set(nc); hatchBtnMesh.material.emissive.set(nc); hatchBtnLight.color.set(nc);
+  };
+  // ── Обратный люк (юг z=+23.6) только с карты 2+ ──
+  if(waveNum>1){
+    const bk=buildHatchAt(tint,true);
+    backHatchMesh=bk.disk; backHatchBtnMesh=bk.btn;
+    addWallText(true); // надпись Bakhodir A.A. рядом с задним люком
+    backHatchBtnMesh.userData.onPress=()=>{
+      backHatchOpen=!backHatchOpen; sndHatchClick();
+      const nc=backHatchOpen?0xff2200:new THREE.Color(tint);
+      backHatchBtnMesh.material.color.set(nc); backHatchBtnMesh.material.emissive.set(nc);
+    };
+  }
+  // пульсация
+  let bph=0;
+  (function pulse(){
+    if(!gameRunning){requestAnimationFrame(pulse);return;}
+    bph+=0.05;
+    if(hatchBtnLight) hatchBtnLight.intensity=hatchOpen?0.6+Math.sin(bph*8)*0.3:0.9+Math.sin(bph*2)*0.3;
+    requestAnimationFrame(pulse);
+  })();
+}
+
+function checkHatchButton(event){
+  const targets=[hatchBtnMesh,backHatchBtnMesh].filter(Boolean);
+  if(!targets.length) return;
+  const ray=new THREE.Raycaster();
+  let nx,ny;
+  if(event.touches){ nx=(event.touches[0].clientX/window.innerWidth)*2-1; ny=-(event.touches[0].clientY/window.innerHeight)*2+1; }
+  else { nx=(event.clientX/window.innerWidth)*2-1; ny=-(event.clientY/window.innerHeight)*2+1; }
+  ray.setFromCamera(new THREE.Vector2(nx,ny),camera);
+  const h=ray.intersectObjects(targets);
+  if(h.length) h[0].object.userData.onPress?.();
+}
+
+function tryPressHatch(){
+  [hatchBtnMesh,backHatchBtnMesh].filter(Boolean).forEach(btn=>{
+    if(camera.position.distanceTo(btn.position)<3.5) btn.userData.onPress?.();
+  });
+}
+
+
+// ── базовая комната: пол/потолок/стены ──
+function baseRoom(fCol,wCol,cCol,fogCol,fogD,l1c,l2c,l3c){
+  scene.fog=new THREE.FogExp2(fogCol,fogD);
+  renderer.setClearColor(fogCol);
+  labLight1.color.set(l1c); labLight1.intensity=2.0;
+  labLight2.color.set(l2c); labLight2.intensity=1.2;
+  labLight3.color.set(l3c); labLight3.intensity=1.0;
+  const R=24;
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),
+    new THREE.MeshStandardMaterial({color:fCol,roughness:0.4,metalness:0.3}));
+  fl.rotation.x=-Math.PI/2; sadd(fl);
+  const ce=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),
+    new THREE.MeshStandardMaterial({color:cCol,roughness:0.9}));
+  ce.rotation.x=Math.PI/2; ce.position.y=7; sadd(ce);
+  [[0,3.5,-R,0],[0,3.5,R,Math.PI],[-R,3.5,0,Math.PI/2],[R,3.5,0,-Math.PI/2]].forEach(([x,y,z,ry])=>{
+    const w=new THREE.Mesh(new THREE.PlaneGeometry(R*2,7),
+      new THREE.MeshStandardMaterial({color:wCol,roughness:0.8,metalness:0.05}));
+    w.position.set(x,y,z); w.rotation.y=ry; sadd(w);
+  });
+}
+
+// ── Общий каркас станции (металл, трубы, панели) ──
+function stationBase(fogCol, fogD, floorCol, wallCol, l1c, l2c, l3c){
+  scene.fog=new THREE.FogExp2(fogCol,fogD);
+  renderer.setClearColor(fogCol);
+  labLight1.color.set(l1c); labLight1.intensity=1.8;
+  labLight2.color.set(l2c); labLight2.intensity=1.0;
+  labLight3.color.set(l3c); labLight3.intensity=0.9;
+  const R=24;
+  const flMat=new THREE.MeshStandardMaterial({color:floorCol,roughness:0.5,metalness:0.8});
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),flMat);
+  fl.rotation.x=-Math.PI/2; fl.receiveShadow=true; sadd(fl);
+  const grid=new THREE.GridHelper(R*2,24,wallCol,floorCol);
+  grid.position.y=0.01; sadd(grid);
+  const ceilMat=new THREE.MeshStandardMaterial({color:0x080c10,roughness:0.8,metalness:0.6});
+  const ceil=new THREE.Mesh(new THREE.PlaneGeometry(R*2,R*2),ceilMat);
+  ceil.rotation.x=Math.PI/2; ceil.position.y=7; sadd(ceil);
+  const wMat=new THREE.MeshStandardMaterial({color:wallCol,roughness:0.6,metalness:0.7});
+  const pMat=new THREE.MeshStandardMaterial({color:wallCol,roughness:0.5,metalness:0.8,emissive:new THREE.Color(wallCol),emissiveIntensity:0.05});
+  [[0,3.5,-R,0],[0,3.5,R,Math.PI],[-R,3.5,0,Math.PI/2],[R,3.5,0,-Math.PI/2]].forEach(([x,y,z,ry])=>{
+    const w=new THREE.Mesh(new THREE.PlaneGeometry(R*2,7),wMat);
+    w.position.set(x,y,z); w.rotation.y=ry; sadd(w);
+    // панели (кроме северной и южной — там люки)
+    if(Math.abs(ry)===Math.PI/2){
+      for(let pi=-2;pi<=2;pi++){
+        const pan=new THREE.Mesh(new THREE.BoxGeometry(8,2,0.07),pMat);
+        pan.position.set(x+(ry===Math.PI/2?0:pi*8),y-0.5,z+(ry===Math.PI/2?pi*8:0));
+        pan.rotation.y=ry; sadd(pan);
+      }
+    }
+  });
+  // Трубы на потолке
+  const pipeMat=new THREE.MeshStandardMaterial({color:0x1a2535,metalness:0.9,roughness:0.2});
+  [-16,-8,0,8,16].forEach(pz=>{
+    const p=new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,R*2,8),pipeMat);
+    p.rotation.z=Math.PI/2; p.position.set(0,6.7,pz); sadd(p);
+  });
+  // Угловые колонны
+  [[-16,-16],[-16,16],[16,-16],[16,16]].forEach(([cx,cz])=>{
+    const col=new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,7,8),pipeMat);
+    col.position.set(cx,3.5,cz); sadd(col);
+    [1.2,3.5,5.8].forEach(cy=>{
+      const band=new THREE.Mesh(new THREE.CylinderGeometry(0.34,0.34,0.14,8),
+        new THREE.MeshBasicMaterial({color:0xffaa00}));
+      band.position.set(cx,cy,cz); sadd(band);
+    });
+  });
+}
+
+// ═══════════════════════════════════════════
+//  MAP 2 — АНГАР ДРОИДОВ
+// ═══════════════════════════════════════════
+function buildHospital(){
+  stationBase(0x030608,0.016,0x0a1018,0x0e1e2e,0x44aaff,0x0066ff,0x2288ff);
+  // Синие рабочие лампы
+  addFlickerLamps([[-12,6.9,0],[0,6.9,0],[12,6.9,0],[-8,6.9,-10],[8,6.9,-10]], '#88ccff');
+  // Стойки для дроидов (прямоугольные рамы)
+  const sMat=new THREE.MeshStandardMaterial({color:0x1a2535,metalness:0.9,roughness:0.2});
+  const ledM=new THREE.MeshBasicMaterial({color:0x44aaff});
+  [[-12,-8],[12,-8],[-12,8],[12,8],[-18,0],[18,0]].forEach(([sx,sz])=>{
+    const frame=new THREE.Mesh(new THREE.BoxGeometry(1.8,3.5,0.5),sMat);
+    frame.position.set(sx,1.75,sz); sadd(frame);
+    for(let r=0;r<5;r++){
+      const led=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.04,0.02),ledM);
+      led.position.set(sx-0.4+Math.random()*0.8,0.4+r*0.6,sz-0.26); sadd(led);
+    }
+    const gl=new THREE.PointLight(0x44aaff,0.4,5); gl.position.set(sx,2.5,sz-0.5); sadd(gl);
+  });
+  // Центральный пульт управления
+  const cMat=new THREE.MeshStandardMaterial({color:0x0a1520,metalness:0.9,roughness:0.15});
+  const cBase=new THREE.Mesh(new THREE.BoxGeometry(4,0.9,2),cMat);
+  cBase.position.set(0,0.45,0); sadd(cBase);
+  ['#44aaff','#00ffcc','#ff4400','#ffcc00'].forEach((col,i)=>{
+    const scr=new THREE.Mesh(new THREE.PlaneGeometry(0.8,0.5),
+      new THREE.MeshBasicMaterial({color:new THREE.Color(col),side:THREE.DoubleSide}));
+    scr.position.set(-1.5+i,0.92,0.1); sadd(scr);
+    const gl=new THREE.PointLight(new THREE.Color(col),0.5,3); gl.position.set(-1.5+i,1.2,0.1); sadd(gl);
+  });
+  // Ящики с запчастями
+  [[-6,-14],[6,-14],[-14,-6],[14,-6],[-14,6],[14,6]].forEach(([bx,bz])=>{
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.2,1.0),sMat);
+    b.position.set(bx,0.6,bz); sadd(b);
+    const gl=new THREE.PointLight(0x44aaff,0.2,4); gl.position.set(bx,1.5,bz); sadd(gl);
+  });
+  startMapAtmosphere('vent');
+  addHatch('#44aaff');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 3 — КОМАНДНЫЙ МОСТИК
+// ═══════════════════════════════════════════
+function buildStation(){
+  stationBase(0x020508,0.015,0x0c1418,0x0d1e2a,0xff4400,0x0033ff,0xff6600);
+  // Иллюминаторы на всех стенах
+  [[0,-24,0,0xee8822],[0,24,Math.PI,0x00aaff],[-24,0,Math.PI/2,0x0088cc],[24,0,-Math.PI/2,0x4488ff]]
+  .forEach(([wx,wz,wy,gc])=>{
+    [-10,-2,2,10].filter(off=>!(wx===0&&Math.abs(off)<4)).forEach(off=>{
+      const rimMat=new THREE.MeshStandardMaterial({color:0x445566,metalness:0.95});
+      const px=wx+(Math.abs(wy)===Math.PI/2?0:off);
+      const pz=wz+(Math.abs(wy)===Math.PI/2?off:0);
+      const rim=new THREE.Mesh(new THREE.RingGeometry(0.65,0.8,20),rimMat);
+      rim.position.set(px,3.4,pz); rim.rotation.y=wy; sadd(rim);
+      const glass=new THREE.Mesh(new THREE.CircleGeometry(0.63,20),
+        new THREE.MeshStandardMaterial({color:0x002244,transparent:true,opacity:0.7,roughness:0}));
+      glass.position.set(px,3.4,pz); glass.rotation.y=wy; sadd(glass);
+      // звёзды
+      const sg=new THREE.BufferGeometry();
+      const sp=[]; for(let s=0;s<60;s++){ const a=Math.random()*Math.PI*2,r=Math.random()*0.55; sp.push(Math.cos(a)*r,Math.sin(a)*r,0); }
+      sg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sp),3));
+      const stars=new THREE.Points(sg,new THREE.PointsMaterial({color:0xffffff,size:0.03}));
+      stars.position.set(px,3.4,pz); stars.rotation.y=wy; sadd(stars);
+      const gl=new THREE.PointLight(gc,0.5,6); gl.position.set(px,3.4,pz+(wy===0?1:(wy===Math.PI?-1:0))); sadd(gl);
+    });
+  });
+  // Аварийные лампы
+  const almMat=new THREE.MeshBasicMaterial({color:0xff1100});
+  [[-18,-18],[-18,18],[18,-18],[18,18]].forEach(([ax,az])=>{
+    const a=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,8),almMat);
+    a.position.set(ax,5.5,az); sadd(a);
+    const pl=new THREE.PointLight(0xff1100,1.5,14); pl.position.set(ax,5.5,az); sadd(pl);
+    const id=setInterval(()=>{ pl.intensity=0.5+Math.random()*2; },500+Math.random()*400);
+    stationIntervals.push(id);
+  });
+  // Командный пульт
+  const cMat=new THREE.MeshStandardMaterial({color:0x0a1825,metalness:0.9,roughness:0.15});
+  const cRim=new THREE.MeshStandardMaterial({color:0x334455,metalness:0.95,roughness:0.05});
+  const cBase2=new THREE.Mesh(new THREE.CylinderGeometry(2.2,2.6,1.1,16),cMat);
+  cBase2.position.set(0,0.55,0); sadd(cBase2);
+  const cTop2=new THREE.Mesh(new THREE.CylinderGeometry(2.3,2.3,0.1,16),cRim);
+  cTop2.position.set(0,1.15,0); sadd(cTop2);
+  ['#00ffcc','#ff4400','#4488ff','#cc44ff','#ff00aa','#44ff88'].forEach((col,i)=>{
+    const angle=(i/6)*Math.PI*2;
+    const scr=new THREE.Mesh(new THREE.PlaneGeometry(0.9,0.55),
+      new THREE.MeshBasicMaterial({color:new THREE.Color(col),side:THREE.DoubleSide}));
+    scr.position.set(Math.sin(angle)*1.8,1.22,Math.cos(angle)*1.8);
+    scr.rotation.y=-angle; sadd(scr);
+    const sl=new THREE.PointLight(new THREE.Color(col),0.4,3); sl.position.copy(scr.position); sadd(sl);
+  });
+  // Кресла
+  const chMat=new THREE.MeshStandardMaterial({color:0x1a2535,metalness:0.5,roughness:0.5});
+  for(let i=0;i<4;i++){
+    const a=(i/4)*Math.PI*2;
+    const seat=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.1,0.55),chMat);
+    seat.position.set(Math.sin(a)*3.3,0.55,Math.cos(a)*3.3); sadd(seat);
+    const back=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.7,0.08),chMat);
+    back.position.set(Math.sin(a)*3.3,0.95,Math.cos(a)*3.3); back.rotation.y=-a; sadd(back);
+  }
+  startMapAtmosphere('vent');
+  addHatch('#ff6600');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 4 — МАШИННЫЙ ЗАЛ
+// ═══════════════════════════════════════════
+function buildSubmarine(){
+  stationBase(0x020810,0.018,0x080f18,0x0a1828,0x0088ff,0x004488,0x00ccff);
+  // Гигантские поршни
+  const engMat=new THREE.MeshStandardMaterial({color:0x1a2a3a,metalness:0.95,roughness:0.1});
+  const pistonMat=new THREE.MeshStandardMaterial({color:0x445566,metalness:0.9,roughness:0.15});
+  [[-10,0],[10,0],[0,-10],[0,10],[-10,-10],[10,-10],[-10,10],[10,10]].forEach(([ex,ez])=>{
+    const body=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,3.5,10),engMat);
+    body.position.set(ex,1.75,ez); sadd(body);
+    const piston=new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,2,8),pistonMat);
+    piston.position.set(ex,4.2,ez); sadd(piston);
+    const head=new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.75,0.3,10),engMat);
+    head.position.set(ex,3.65,ez); sadd(head);
+    const gl=new THREE.PointLight(0x0088ff,0.5,6); gl.position.set(ex,2,ez); sadd(gl);
+    // анимация поршня
+    let ph=Math.random()*Math.PI*2;
+    const id=setInterval(()=>{ ph+=0.08; piston.position.y=4.2+Math.sin(ph)*0.6; },30);
+    stationIntervals.push(id);
+  });
+  // Горизонтальные трубы с вентилями
+  const pipeMat=new THREE.MeshStandardMaterial({color:0x223344,metalness:0.9,roughness:0.2});
+  [-8,0,8].forEach(pz=>{
+    const pipe=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,48,8),pipeMat);
+    pipe.rotation.z=Math.PI/2; pipe.position.set(0,5.5,pz); sadd(pipe);
+    [-16,-8,0,8,16].forEach(px=>{
+      const valve=new THREE.Mesh(new THREE.TorusGeometry(0.18,0.04,6,12),pipeMat);
+      valve.position.set(px,5.5,pz); sadd(valve);
+    });
+  });
+  // Иллюминаторы-глубиномеры
+  [[0,-23.8,0,0x00aaff],[0,23.8,Math.PI,0x0077cc]].forEach(([wx,wz,wy,gc])=>{
+    [-8,0,8].forEach(off=>{
+      const rim=new THREE.Mesh(new THREE.RingGeometry(0.6,0.75,16),
+        new THREE.MeshStandardMaterial({color:0x334455,metalness:0.95}));
+      rim.position.set(off,3.4,wz); rim.rotation.y=wy; sadd(rim);
+      const glass=new THREE.Mesh(new THREE.CircleGeometry(0.58,16),
+        new THREE.MeshStandardMaterial({color:0x001830,transparent:true,opacity:0.8,roughness:0}));
+      glass.position.set(off,3.4,wz); glass.rotation.y=wy; sadd(glass);
+      const gl=new THREE.PointLight(gc,0.4,5); gl.position.set(off,3.4,wz+(wy===0?0.8:-0.8)); sadd(gl);
+    });
+  });
+  // Лампы
+  addFlickerLamps([[-12,6.9,-4],[0,6.9,-4],[12,6.9,-4],[-12,6.9,4],[0,6.9,4],[12,6.9,4]].map(p=>[...p]), '#88ccff');
+  startMapAtmosphere('reactor');
+  addHatch('#00ccff');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 5 — КРИОГЕННЫЙ ОТСЕК
+// ═══════════════════════════════════════════
+function buildTomb(){
+  stationBase(0x020508,0.014,0x0a1418,0x0d1e28,0x44ccff,0x0088aa,0x88ddff);
+  // Криокапсулы
+  const capMat=new THREE.MeshStandardMaterial({color:0x0d2030,metalness:0.7,roughness:0.3,transparent:true,opacity:0.85});
+  const glMat=new THREE.MeshStandardMaterial({color:0x44aacc,transparent:true,opacity:0.5,roughness:0,metalness:0.1});
+  const frmMat=new THREE.MeshStandardMaterial({color:0x334455,metalness:0.9,roughness:0.1});
+  [[-10,-8],[10,-8],[-10,8],[10,8],[-16,0],[16,0],[0,-16],[0,16]].forEach(([cx,cz])=>{
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.6,2.4,10),capMat);
+    cap.position.set(cx,1.2,cz); sadd(cap);
+    const lid=new THREE.Mesh(new THREE.CylinderGeometry(0.52,0.52,2.2,10),glMat);
+    lid.position.set(cx,1.2,cz); sadd(lid);
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.04,8,24),frmMat);
+    ring.position.set(cx,1.2,cz); ring.rotation.x=Math.PI/2; sadd(ring);
+    const gl=new THREE.PointLight(0x44ccff,0.6,4); gl.position.set(cx,2.2,cz); sadd(gl);
+    // мерцание капсулы
+    const id=setInterval(()=>{ gl.intensity=0.4+Math.random()*0.4; },800+Math.random()*600);
+    stationIntervals.push(id);
+  });
+  // Центральная ёмкость с криоагентом
+  const tankMat=new THREE.MeshStandardMaterial({color:0x0a2030,metalness:0.8,roughness:0.2,transparent:true,opacity:0.7});
+  const tank=new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.6,3.5,12),tankMat);
+  tank.position.set(0,1.75,0); sadd(tank);
+  const tGlow=new THREE.PointLight(0x44ccff,2.5,12); tGlow.position.set(0,2,0); sadd(tGlow);
+  let tph=0;
+  (function ta(){ if(!gameRunning){requestAnimationFrame(ta);return;}
+    tph+=0.03; tGlow.intensity=2.2+Math.sin(tph)*0.5; requestAnimationFrame(ta); })();
+  // Лампы
+  addFlickerLamps([[-12,6.9,0],[0,6.9,0],[12,6.9,0],[-8,6.9,-10],[8,6.9,-10]].map(p=>[...p]),'#88ddff');
+  startMapAtmosphere('deep');
+  addHatch('#44ccff');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 6 — АРСЕНАЛ
+// ═══════════════════════════════════════════
+function buildArctic(){
+  stationBase(0x030508,0.015,0x0c1014,0x121c22,0xffaa00,0xff6600,0xffcc44);
+  // Стойки с оружием/ящики с боеприпасами
+  const amMat=new THREE.MeshStandardMaterial({color:0x1a2010,metalness:0.7,roughness:0.4});
+  const crateMat=new THREE.MeshStandardMaterial({color:0x2a3015,metalness:0.4,roughness:0.7});
+  [[-10,-10],[10,-10],[-10,10],[10,10],[-16,-5],[16,-5],[-16,5],[16,5]].forEach(([ax,az])=>{
+    for(let s=0;s<3;s++){
+      const cr=new THREE.Mesh(new THREE.BoxGeometry(1.4,0.9,1.0),s%2?amMat:crateMat);
+      cr.position.set(ax,0.45+s*0.92,az); sadd(cr);
+    }
+    // полосы опасности
+    const stripe=new THREE.Mesh(new THREE.BoxGeometry(1.42,0.12,1.02),
+      new THREE.MeshBasicMaterial({color:0xffaa00}));
+    stripe.position.set(ax,0.06,az); sadd(stripe);
+    const gl=new THREE.PointLight(0xffaa00,0.3,5); gl.position.set(ax,2.5,az); sadd(gl);
+  });
+  // Настенные стеллажи
+  const shMat=new THREE.MeshStandardMaterial({color:0x223322,metalness:0.8,roughness:0.3});
+  [[-23.5,0,Math.PI/2],[23.5,0,-Math.PI/2]].forEach(([wx,wz,wy])=>{
+    for(let row=0;row<3;row++){
+      const shelf=new THREE.Mesh(new THREE.BoxGeometry(12,0.06,0.8),shMat);
+      shelf.position.set(wx+(wy>0?0.4:-0.4),1.2+row*1.4,wz); shelf.rotation.y=wy; sadd(shelf);
+    }
+  });
+  // Предупреждающие знаки на потолке
+  const warnMat=new THREE.MeshBasicMaterial({color:0xffcc00,side:THREE.DoubleSide});
+  [-10,0,10].forEach(wx=>{
+    const tri=new THREE.Mesh(new THREE.CylinderGeometry(0,0.5,0.6,3),warnMat);
+    tri.position.set(wx,6.6,0); sadd(tri);
+    const gl=new THREE.PointLight(0xffcc00,0.5,6); gl.position.set(wx,6.5,0); sadd(gl);
+  });
+  addFlickerLamps([[-12,6.9,-5],[0,6.9,-5],[12,6.9,-5],[-12,6.9,5],[0,6.9,5],[12,6.9,5]].map(p=>[...p]),'#ffcc88');
+  startMapAtmosphere('vent');
+  addHatch('#ffaa00');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 7 — МЕДИЦИНСКИЙ БЛОК
+// ═══════════════════════════════════════════
+function buildVolcano(){
+  stationBase(0x030508,0.013,0x0e1a1e,0x0f2028,0x00ffaa,0x00bb88,0x44ffcc);
+  // Операционные столы
+  const tblMat=new THREE.MeshStandardMaterial({color:0xddeeee,roughness:0.2,metalness:0.4});
+  const frmMat2=new THREE.MeshStandardMaterial({color:0x8899aa,metalness:0.8,roughness:0.2});
+  [[-10,-8],[10,-8],[-10,8],[10,8],[0,-14],[0,14]].forEach(([tx,tz])=>{
+    const top=new THREE.Mesh(new THREE.BoxGeometry(2.4,0.08,1.2),tblMat);
+    top.position.set(tx,1.1,tz); sadd(top);
+    [[-1.1,-0.5],[1.1,-0.5],[-1.1,0.5],[1.1,0.5]].forEach(([lx,lz])=>{
+      const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,1.1,6),frmMat2);
+      leg.position.set(tx+lx,0.55,tz+lz); sadd(leg);
+    });
+    const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.25,8,8),
+      new THREE.MeshBasicMaterial({color:0xeeffff}));
+    lamp.position.set(tx,4.5,tz); sadd(lamp);
+    const lgl=new THREE.PointLight(0xaaffdd,1.2,7); lgl.position.set(tx,4.0,tz); sadd(lgl);
+    const id=setInterval(()=>{ lgl.intensity=0.9+Math.random()*0.6; },1000+Math.random()*800);
+    stationIntervals.push(id);
+  });
+  // Мед-оборудование (сканеры)
+  const scanMat=new THREE.MeshStandardMaterial({color:0x0a2030,metalness:0.8,roughness:0.3});
+  [[-16,0],[16,0],[0,-18]].forEach(([sx,sz])=>{
+    const body=new THREE.Mesh(new THREE.BoxGeometry(2.5,1.8,0.8),scanMat);
+    body.position.set(sx,0.9,sz); sadd(body);
+    const scr=new THREE.Mesh(new THREE.PlaneGeometry(2.0,1.2),
+      new THREE.MeshBasicMaterial({color:0x003322,side:THREE.DoubleSide}));
+    scr.position.set(sx,0.9,sz-0.41); sadd(scr);
+    const sgl=new THREE.PointLight(0x00ffaa,0.6,5); sgl.position.set(sx,1.5,sz-0.5); sadd(sgl);
+  });
+  addFlickerLamps([[-12,6.9,-6],[0,6.9,-6],[12,6.9,-6],[-12,6.9,6],[0,6.9,6],[12,6.9,6]].map(p=>[...p]),'#aaffee');
+  startMapAtmosphere('vent');
+  addHatch('#00ffaa');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 8 — ЭНЕРГЕТИЧЕСКИЙ ЩИТОК
+// ═══════════════════════════════════════════
+function buildCyberpunk(){
+  stationBase(0x020508,0.016,0x080c10,0x0c1620,0xff00cc,0x8800ff,0x00ccff);
+  // Плазменные конденсаторы
+  const capMat=new THREE.MeshStandardMaterial({color:0x1a0a2a,metalness:0.8,roughness:0.2,transparent:true,opacity:0.85});
+  [[-8,-8],[8,-8],[-8,8],[8,8],[-14,0],[14,0],[0,-14],[0,14]].forEach(([cx,cz])=>{
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.6,2.8,8),capMat);
+    cap.position.set(cx,1.4,cz); sadd(cap);
+    const core=new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,2.6,8),
+      new THREE.MeshStandardMaterial({color:0xff00cc,emissive:0x880066,emissiveIntensity:0.8,transparent:true,opacity:0.9}));
+    core.position.set(cx,1.4,cz); sadd(core);
+    const gl=new THREE.PointLight(0xff00cc,0.8,6); gl.position.set(cx,1.4,cz); sadd(gl);
+    let ph=Math.random()*Math.PI*2;
+    const id=setInterval(()=>{ ph+=0.06; gl.intensity=0.6+Math.sin(ph)*0.4; },30);
+    stationIntervals.push(id);
+  });
+  // Неоновые энергопроводы на полу
+  const neonCols=[0xff00cc,0x00ccff,0xaa00ff,0x00ffaa];
+  for(let i=-18;i<=18;i+=6){
+    const strip=new THREE.Mesh(new THREE.PlaneGeometry(0.1,48),
+      new THREE.MeshBasicMaterial({color:neonCols[Math.abs(Math.round(i/6))%4]}));
+    strip.rotation.x=-Math.PI/2; strip.position.set(i,0.005,0); sadd(strip);
+  }
+  // Неоновые трубки под потолком
+  [0xff00cc,0x00ccff,0xaa00ff].forEach((col,i)=>{
+    const tube=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,48,8),
+      new THREE.MeshBasicMaterial({color}));
+    tube.rotation.z=Math.PI/2; tube.position.set(0,6.5+i*0.12,i*6-6); sadd(tube);
+    const gl=new THREE.PointLight(col,0.6,14); gl.position.set(0,6.5,i*6-6); sadd(gl);
+  });
+  // Распределительный щиток
+  const panMat=new THREE.MeshStandardMaterial({color:0x0a1020,metalness:0.9,roughness:0.15});
+  [[-23.5,0,Math.PI/2],[23.5,0,-Math.PI/2]].forEach(([wx,wz,wy])=>{
+    const panel=new THREE.Mesh(new THREE.BoxGeometry(8,4,0.3),panMat);
+    panel.position.set(wx+(wy>0?0.2:-0.2),3.5,wz); panel.rotation.y=wy; sadd(panel);
+    for(let row=0;row<4;row++) for(let col=0;col<8;col++){
+      const nCol=[0xff00cc,0x00ccff,0x00ff44,0xffcc00][(row+col)%4];
+      const led=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.08,0.04),
+        new THREE.MeshBasicMaterial({color:nCol}));
+      led.position.set(wx+(wy>0?0.35:-0.35),2+row*0.55,wz+(wy===Math.PI/2?col*0.85-3.4:col*0.85-3.4));
+      led.rotation.y=wy; sadd(led);
+    }
+  });
+  startMapAtmosphere('reactor');
+  addFlickerLamps([[-6,6.9,-14],[0,6.9,-14],[6,6.9,-14],
+                   [-6,6.9,14],[0,6.9,14],[6,6.9,14]], '#ff88cc');
+  // Стрелки на полу → к северному люку
+  const arrowMat=new THREE.MeshBasicMaterial({color:0xff00cc,side:THREE.DoubleSide});
+  [-5,0,5].forEach(ax=>{
+    [-18,-14,-10].forEach(az=>{
+      const arr=new THREE.Mesh(new THREE.PlaneGeometry(0.5,1.0),arrowMat);
+      arr.rotation.x=-Math.PI/2; arr.position.set(ax,0.01,az); sadd(arr);
+    });
+  });
+  // Яркая полоса вдоль всей северной стены
+  const northStrip=new THREE.Mesh(new THREE.PlaneGeometry(8,0.2),
+    new THREE.MeshBasicMaterial({color:0xff00cc}));
+  northStrip.rotation.x=-Math.PI/2; northStrip.position.set(0,0.01,-22); sadd(northStrip);
+  const ngl=new THREE.PointLight(0xff00cc,3.0,12); ngl.position.set(0,2,-21); sadd(ngl);
+  // Яркая полоса вдоль южной стены
+  const southStrip=new THREE.Mesh(new THREE.PlaneGeometry(8,0.2),
+    new THREE.MeshBasicMaterial({color:0xff00cc}));
+  southStrip.rotation.x=-Math.PI/2; southStrip.position.set(0,0.01,22); sadd(southStrip);
+  const sgl=new THREE.PointLight(0xff00cc,3.0,12); sgl.position.set(0,2,21); sadd(sgl);
+  addHatch('#ff00cc');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 9 — РЕАКТОРНЫЙ ЗАЛ
+// ═══════════════════════════════════════════
+function buildReactor(){
+  stationBase(0x020804,0.016,0x080e08,0x0a1a0a,0x00ff44,0x00cc33,0x44ff88);
+  // Центральный реактор
+  const reactMat=new THREE.MeshStandardMaterial({color:0x112211,metalness:0.9,roughness:0.15});
+  const coreMat2=new THREE.MeshStandardMaterial({color:0x00ff44,emissive:0x004400,
+    emissiveIntensity:0.9,transparent:true,opacity:0.85,roughness:0,metalness:0.2});
+  const core2=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,5,12),coreMat2);
+  core2.position.set(0,2.5,0); sadd(core2);
+  const rpl=new THREE.PointLight(0x00ff44,3.5,18); rpl.position.set(0,2.5,0); sadd(rpl);
+  [0.5,1.5,2.5,3.5,4.5].forEach(ry=>{
+    const ring2=new THREE.Mesh(new THREE.TorusGeometry(1.4,0.08,8,24),
+      new THREE.MeshStandardMaterial({color:0x22dd44,metalness:0.9,emissive:0x004400,emissiveIntensity:0.5}));
+    ring2.position.set(0,ry,0); sadd(ring2);
+  });
+  const casing2=new THREE.Mesh(new THREE.CylinderGeometry(1.6,1.6,5.5,12),reactMat);
+  casing2.position.set(0,2.75,0); sadd(casing2);
+  // Трубы охлаждения
+  const pipeMat2=new THREE.MeshStandardMaterial({color:0x1a2a1a,metalness:0.85,roughness:0.2});
+  [[-4,0],[4,0],[0,-4],[0,4]].forEach(([px,pz])=>{
+    const pipe2=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,7,8),pipeMat2);
+    pipe2.position.set(px,3.5,pz); sadd(pipe2);
+    const gl2=new THREE.PointLight(0x00ff44,0.3,5); gl2.position.set(px,2,pz); sadd(gl2);
+  });
+  // Серверы
+  const servMat2=new THREE.MeshStandardMaterial({color:0x0d1a0d,metalness:0.8,roughness:0.3});
+  [[-18,0],[-18,8],[-18,-8],[18,0],[18,8],[18,-8]].forEach(([sx,sz])=>{
+    const rack2=new THREE.Mesh(new THREE.BoxGeometry(1.2,3.0,0.65),servMat2);
+    rack2.position.set(sx,1.5,sz); sadd(rack2);
+    const lgl2=new THREE.PointLight(0x00ff44,0.25,4); lgl2.position.set(sx,1.5,sz-0.4); sadd(lgl2);
+  });
+  let rph2=0;
+  (function rp(){ if(!gameRunning){requestAnimationFrame(rp);return;}
+    rph2+=0.04; rpl.intensity=3.0+Math.sin(rph2*2.2)*0.8; requestAnimationFrame(rp); })();
+  addFlickerLamps([[-12,6.9,-6],[0,6.9,-6],[12,6.9,-6]].map(p=>[...p]),'#44ff88');
+  startMapAtmosphere('reactor');
+  addHatch('#00ff44');
+}
+
+// ═══════════════════════════════════════════
+//  MAP 10 — ИНОПЛАНЕТНЫЙ ТРЮМ
+// ═══════════════════════════════════════════
+function buildAlienHive(){
+  stationBase(0x030008,0.020,0x0a0015,0x0e0020,0xaa00ff,0xff00aa,0x4400cc);
+  // Органические наросты на стенах
+  const tentMat2=new THREE.MeshStandardMaterial({color:0x1a0028,roughness:0.8});
+  const spMat2=new THREE.MeshStandardMaterial({color:0xaa00ff,emissive:0x330066,
+    emissiveIntensity:0.7,transparent:true,opacity:0.9});
+  for(let i=0;i<20;i++){
+    const angle=i/20*Math.PI*2;
+    const r=9+Math.random()*11;
+    const tx=Math.cos(angle)*r, tz=Math.sin(angle)*r;
+    const h=2+Math.random()*4;
+    const tent2=new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.2,h,6),tentMat2);
+    tent2.position.set(tx,h/2,tz);
+    tent2.rotation.z=(Math.random()-0.5)*0.4; tent2.rotation.x=(Math.random()-0.5)*0.3;
+    sadd(tent2);
+    const bulb2=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8),spMat2);
+    bulb2.position.set(tx,h+0.2,tz); sadd(bulb2);
+    const gl3=new THREE.PointLight(0xaa00ff,0.7,5); gl3.position.set(tx,h+0.2,tz); sadd(gl3);
+  }
+  // Коконы
+  const eggMat2=new THREE.MeshStandardMaterial({color:0x1a0028,transparent:true,opacity:0.8,roughness:0.3});
+  [[-10,-10],[10,-10],[-10,10],[10,10],[-16,0],[16,0],[0,-16],[0,16]].forEach(([ex,ez])=>{
+    const egg2=new THREE.Mesh(new THREE.SphereGeometry(0.8,10,10),eggMat2);
+    egg2.scale.y=1.4; egg2.position.set(ex,0.8,ez); sadd(egg2);
+    const gl4=new THREE.PointLight(0x8800cc,0.4,4); gl4.position.set(ex,1.5,ez); sadd(gl4);
+  });
+  // Портал
+  const porMat=new THREE.MeshBasicMaterial({color:0xcc00ff,side:THREE.DoubleSide});
+  [1.0,1.6,2.2].forEach(pr=>{
+    const ring3=new THREE.Mesh(new THREE.TorusGeometry(pr,0.06,8,32),porMat);
+    ring3.position.set(0,1.0,0); sadd(ring3);
+  });
+  const porLight=new THREE.PointLight(0xcc00ff,3.0,14); porLight.position.set(0,1,0); sadd(porLight);
+  let pph2=0;
+  (function pp(){ if(!gameRunning){requestAnimationFrame(pp);return;}
+    pph2+=0.05; porLight.intensity=2.5+Math.sin(pph2*2.5)*1.2; requestAnimationFrame(pp); })();
+  startMapAtmosphere('alien');
+  addHatch('#cc00ff');
+}
+
+// ═══════════════════════════════════════════
+//  GUN (first-person)
+// ═══════════════════════════════════════════
+//  GUN (first-person)
+// ═══════════════════════════════════════════
+let gunGroup;
+let gunRecoilZ=0, gunSway=0;
+
+function createGun() {
+  gunGroup = new THREE.Group();
+
+  // Body
+  const body=new THREE.Mesh(
+    new THREE.BoxGeometry(0.07,0.065,0.28),
+    new THREE.MeshStandardMaterial({color:0x116666,metalness:0.8,roughness:0.2})
+  );
+  gunGroup.add(body);
+
+  // Barrel
+  const barrel=new THREE.Mesh(
+    new THREE.CylinderGeometry(0.022,0.022,0.22,8),
+    new THREE.MeshStandardMaterial({color:0x33aaaa,metalness:0.9,roughness:0.1})
+  );
+  barrel.rotation.x=Math.PI/2; barrel.position.z=-0.22;
+  gunGroup.add(barrel);
+
+  // Grip
+  const grip=new THREE.Mesh(
+    new THREE.BoxGeometry(0.055,0.12,0.07),
+    new THREE.MeshStandardMaterial({color:0x0d4444,metalness:0.3,roughness:0.7})
+  );
+  grip.position.set(0,-0.085,0.04); grip.rotation.x=0.18;
+  gunGroup.add(grip);
+
+  // Detail stripe
+  const stripe=new THREE.Mesh(
+    new THREE.BoxGeometry(0.073,0.012,0.28),
+    new THREE.MeshStandardMaterial({color:0x00ffcc,emissive:0x00ffcc,emissiveIntensity:0.8})
+  );
+  stripe.position.y=0.028; gunGroup.add(stripe);
+
+  // Glowing tip
+  const tip=new THREE.Mesh(
+    new THREE.SphereGeometry(0.028,8,8),
+    new THREE.MeshBasicMaterial({color:0x00ffff})
+  );
+  tip.position.z=-0.335; gunGroup.add(tip);
+
+  const tipGlow=new THREE.PointLight(0x00ffcc,1.5,0.6);
+  tipGlow.position.z=-0.335; gunGroup.add(tipGlow);
+
+  // Sight
+  const sight=new THREE.Mesh(
+    new THREE.BoxGeometry(0.015,0.025,0.015),
+    new THREE.MeshBasicMaterial({color:0x00ff88})
+  );
+  sight.position.set(0,0.038,-0.1); gunGroup.add(sight);
+
+  gunGroup.position.set(0.16,-0.14,-0.32);
+  camera.add(gunGroup);
+  scene.add(camera);
+}
+
+// ═══════════════════════════════════════════
+//  ПАТОГЕНЫ  (вид под электронным микроскопом)
+// ═══════════════════════════════════════════
+
+/* Распределение точек по сфере (Fibonacci lattice) — равномерно */
+function fibonacciSphere(N) {
+  const pts = [];
+  const golden = Math.PI * (3 - Math.sqrt(5));
+  for (let i = 0; i < N; i++) {
+    const y   = 1 - (i / (N - 1)) * 2;
+    const r   = Math.sqrt(1 - y * y);
+    const phi = golden * i;
+    pts.push(new THREE.Vector3(r * Math.cos(phi), y, r * Math.sin(phi)));
+  }
+  return pts;
+}
+
+/* ── КОРОНАВИРУС  (серый, шипы с булавовидными окончаниями) ── */
+function makeCorona(tier) {
+  const g   = new THREE.Group();
+  const R   = 0.40 + tier * 0.07;
+
+  // Оболочка — тёмно-серая, металлик (EM-стиль)
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x4a5568, roughness: 0.35, metalness: 0.55,
+    emissive: 0x1a2030, emissiveIntensity: 0.4
+  });
+  g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 14, 14), bodyMat));
+
+  // Белковые шипы — равномерно по всей поверхности
+  const N = 22 + tier * 6;
+  const shaftMat = new THREE.MeshStandardMaterial({
+    color: 0x718096, roughness: 0.4, metalness: 0.4,
+    emissive: 0x2d3748, emissiveIntensity: 0.3
+  });
+  const bulbMat = new THREE.MeshStandardMaterial({
+    color: 0xa0aec0, roughness: 0.3, metalness: 0.5,
+    emissive: 0x4a5568, emissiveIntensity: 0.5
+  });
+
+  fibonacciSphere(N).forEach(dir => {
+    const pivot = new THREE.Group();
+    pivot.position.copy(dir.clone().multiplyScalar(R));
+    pivot.lookAt(dir.clone().multiplyScalar(R * 3));
+
+    // Стержень шипа
+    const shaft = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.028, 0.035, 0.28 + tier * 0.04, 6),
+      shaftMat
+    );
+    shaft.position.y = 0.14;
+    pivot.add(shaft);
+
+    // Булавовидный наконечник
+    const bulb = new THREE.Mesh(
+      new THREE.SphereGeometry(0.055 + tier * 0.008, 7, 7),
+      bulbMat
+    );
+    bulb.position.y = 0.30;
+    pivot.add(bulb);
+
+    g.add(pivot);
+  });
+
+  const glowCol = 0x4299e1;
+  const pl = new THREE.PointLight(glowCol, 0.6, 2.8);
+  g.add(pl);
+
+  g._color = 0x4a5568;
+  g._glowCol = glowCol;
+  g._tier = tier;
+  g._type = 'corona';
+  return g;
+}
+
+/* ── АДЕНОВИРУС  (икосаэдр + острые фибровые шипы) ── */
+function makeAdeno(tier) {
+  const g  = new THREE.Group();
+  const R  = 0.36 + tier * 0.07;
+
+  // Икосаэдрическая капсида
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: 0x276749, roughness: 0.25, metalness: 0.65,
+    emissive: 0x0d2b1a, emissiveIntensity: 0.5
+  });
+  g.add(new THREE.Mesh(new THREE.IcosahedronGeometry(R, 1), bodyMat));
+
+  // Острые фибровые шипы (меньше, но длиннее)
+  const N = 12 + tier * 4;
+  const spikeMat = new THREE.MeshStandardMaterial({
+    color: 0x48bb78, roughness: 0.3, metalness: 0.5,
+    emissive: 0x1a4731, emissiveIntensity: 0.5
+  });
+  fibonacciSphere(N).forEach(dir => {
+    const pivot = new THREE.Group();
+    pivot.position.copy(dir.clone().multiplyScalar(R));
+    pivot.lookAt(dir.clone().multiplyScalar(R * 3));
+    const spike = new THREE.Mesh(
+      new THREE.ConeGeometry(0.032, 0.38 + tier * 0.05, 5),
+      spikeMat
+    );
+    spike.position.y = 0.19;
+    pivot.add(spike);
+    // маленький шарик на вершине (receptor knob)
+    const knob = new THREE.Mesh(
+      new THREE.SphereGeometry(0.04, 6, 6),
+      new THREE.MeshStandardMaterial({ color: 0x9ae6b4, roughness: 0.2, metalness: 0.6 })
+    );
+    knob.position.y = 0.40;
+    pivot.add(knob);
+    g.add(pivot);
+  });
+
+  const glowCol = 0x38a169;
+  g.add(new THREE.PointLight(glowCol, 0.7, 2.5));
+  g._color = 0x276749;
+  g._glowCol = glowCol;
+  g._tier = tier;
+  g._type = 'adeno';
+  return g;
+}
+
+/* ── ПАЛОЧКА КОХА  (Mycobacterium tuberculosis) — красная, удлинённая ── */
+function makeKoch(tier) {
+  const g = new THREE.Group();
+
+  const len  = 0.95 + tier * 0.12;
+  const rad  = 0.16 + tier * 0.02;
+
+  // Цвет — характерный красный (кислотоустойчивое окрашивание по Цилю-Нильсену)
+  const rodMat = new THREE.MeshStandardMaterial({
+    color: 0xc53030, roughness: 0.45, metalness: 0.25,
+    emissive: 0x742a2a, emissiveIntensity: 0.55
+  });
+  const capMat = new THREE.MeshStandardMaterial({
+    color: 0xe53e3e, roughness: 0.4, metalness: 0.3,
+    emissive: 0x9b2c2c, emissiveIntensity: 0.4
+  });
+
+  // Цилиндрическое тело
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(rad, rad, len, 10),
+    rodMat
+  );
+  g.add(body);
+
+  // Полукруглые торцы (реалистичная форма бациллы)
+  [len / 2, -len / 2].forEach(y => {
+    const cap = new THREE.Mesh(
+      new THREE.SphereGeometry(rad, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2),
+      capMat
+    );
+    cap.position.y = y;
+    if (y < 0) cap.rotation.x = Math.PI;
+    g.add(cap);
+  });
+
+  // Поверхностные волнистые выступы (миколовые кислоты — восковая оболочка)
+  const waxMat = new THREE.MeshStandardMaterial({
+    color: 0xfc8181, roughness: 0.6, metalness: 0.1,
+    emissive: 0xc53030, emissiveIntensity: 0.3,
+    transparent: true, opacity: 0.75
+  });
+  for (let i = 0; i < 14 + tier * 3; i++) {
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.055 + Math.random() * 0.03, 5, 5), waxMat);
+    const angle = Math.random() * Math.PI * 2;
+    const yPos  = (Math.random() - 0.5) * len * 0.85;
+    bead.position.set(Math.cos(angle) * (rad + 0.02), yPos, Math.sin(angle) * (rad + 0.02));
+    g.add(bead);
+  }
+
+  const glowCol = 0xfc4444;
+  const pl = new THREE.PointLight(glowCol, 1.0, 3.0);
+  g.add(pl);
+
+  g._color = 0xc53030;
+  g._glowCol = glowCol;
+  g._tier = tier;
+  g._type = 'koch';
+  return g;
+}
+
+/* ── СПАУН ── */
+function spawnMicrobe() {
+  const tier = Math.min(Math.floor((waveNum - 1) / 3), 3);
+
+  // Вероятности типов патогенов
+  // Только коронавирус и аденовирус
+  const rand = Math.random();
+  let mesh;
+  if (rand < 0.55) {
+    mesh = makeCorona(tier);
+  } else {
+    mesh = makeAdeno(tier);
+  }
+
+  const angle = Math.random() * Math.PI * 2;
+  const dist  = 14 + Math.random() * 8;
+  mesh.position.set(
+    camera.position.x + Math.cos(angle) * dist,
+    0.6 + Math.random() * 0.5,
+    camera.position.z + Math.sin(angle) * dist
+  );
+
+  scene.add(mesh);
+
+  microbes.push({
+    mesh,
+    speed:     0.020 + waveNum * 0.004 + Math.random() * 0.014,
+    hp:        1, // ← ЗДОРОВЬЕ МИКРОБОВ: 1 = гибель с 1 выстрела; увеличьте для большей живучести
+    color:     mesh._color,
+    rotSpeed:  (Math.random() - 0.5) * 0.045,
+    bobOffset: Math.random() * Math.PI * 2
+  });
+}
+
+// ═══════════════════════════════════════════
+//  BULLETS
+// ═══════════════════════════════════════════
+const bulletMat = new THREE.MeshBasicMaterial({color:0x00ffcc});
+const bulletGeo = new THREE.SphereGeometry(0.075, 6, 6);
+
+function shoot() {
+  const now=Date.now();
+  if(now-lastShot < SHOOT_CD || !gameRunning) return;
+  lastShot=now;
+
+  const b = new THREE.Mesh(bulletGeo, bulletMat);
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+
+  const startPos = new THREE.Vector3();
+  camera.getWorldPosition(startPos);
+  b.position.copy(startPos).addScaledVector(dir, 0.4);
+  scene.add(b);
+
+  // Bullet glow
+  const pl=new THREE.PointLight(0x00ffcc,3,1.5);
+  b.add(pl);
+
+  bullets.push({mesh:b, dir:dir.clone(), life:55});
+
+  sndShoot();
+
+  // Recoil
+  gunRecoilZ=0.05;
+
+  // Muzzle flash
+  const flash=new THREE.PointLight(0xaaffff,8,2);
+  flash.position.copy(startPos).addScaledVector(dir,0.3);
+  scene.add(flash);
+  setTimeout(()=>scene.remove(flash),60);
+}
+
+// ═══════════════════════════════════════════
+//  PARTICLES
+// ═══════════════════════════════════════════
+function spawnParticles(pos, color, count=14) {
+  for(let i=0;i<count;i++){
+    const g=new THREE.Mesh(
+      new THREE.SphereGeometry(0.05+Math.random()*0.06,4,4),
+      new THREE.MeshBasicMaterial({color,transparent:true,opacity:1})
+    );
+    g.position.copy(pos);
+    scene.add(g);
+    particles.push({
+      mesh:g,
+      vel:new THREE.Vector3((Math.random()-.5)*.22,(Math.random()*.18+0.05),(Math.random()-.5)*.22),
+      life:28+Math.floor(Math.random()*14)
+    });
+  }
+}
+
+// ═══════════════════════════════════════════
+//  INPUT — JOYSTICK
+// ═══════════════════════════════════════════
+const jZone=document.getElementById('joystick-zone');
+const jKnob=document.getElementById('jknob');
+const jCenter={x:65,y:65};
+let jDelta={x:0,y:0};
+let jActive=false, jTouchId=null;
+
+jZone.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.changedTouches[0];
+  const r=jZone.getBoundingClientRect();
+  jActive=true; jTouchId=t.identifier;
+  jCenter.x=r.left+65; jCenter.y=r.top+65;
+},{passive:false});
+jZone.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t.identifier!==jTouchId) continue;
+    jDelta.x=Math.max(-1,Math.min(1,(t.clientX-jCenter.x)/55));
+    jDelta.y=Math.max(-1,Math.min(1,(t.clientY-jCenter.y)/55));
+    const len=Math.sqrt(jDelta.x**2+jDelta.y**2);
+    if(len>1){jDelta.x/=len;jDelta.y/=len;}
+    jKnob.style.left=(39+jDelta.x*36)+'px';
+    jKnob.style.top =(39+jDelta.y*36)+'px';
+  }
+},{passive:false});
+const resetJoystick=e=>{
+  for(const t of e.changedTouches) if(t.identifier===jTouchId){
+    jActive=false; jTouchId=null;
+    jDelta={x:0,y:0};
+    jKnob.style.left='39px'; jKnob.style.top='39px';
+  }
+};
+jZone.addEventListener('touchend',resetJoystick,{passive:false});
+jZone.addEventListener('touchcancel',resetJoystick,{passive:false});
+
+// ── LOOK (swipe anywhere except joystick and fire button) ──
+let lookTouchId=null, lookLast={x:0,y:0};
+let yaw=0, pitch=0;
+
+// Джойстик занимает левый нижний угол ~150x150px
+// Кнопка огня — правый нижний угол ~110px
+// Зона прицела = всё остальное (бо́льшая часть экрана)
+function isLookZone(x, y) {
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const inJoystick  = x < 160 && y > H - 160;   // левый нижний угол
+  const inFireBtn   = x > W - 120 && y > H - 120; // правый нижний угол
+  return !inJoystick && !inFireBtn;
+}
+
+document.addEventListener('touchstart',e=>{
+  for(const t of e.changedTouches){
+    if(lookTouchId!==null) continue;
+    if(isLookZone(t.clientX, t.clientY)){
+      lookTouchId=t.identifier;
+      lookLast={x:t.clientX,y:t.clientY};
+    }
+  }
+},{passive:false});
+document.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    if(t.identifier!==lookTouchId) continue;
+    yaw  -=(t.clientX-lookLast.x)*0.003;
+    pitch-=(t.clientY-lookLast.y)*0.003;
+    pitch=Math.max(-1.1,Math.min(1.1,pitch));
+    lookLast={x:t.clientX,y:t.clientY};
+  }
+},{passive:false});
+document.addEventListener('touchend',e=>{
+  for(const t of e.changedTouches) if(t.identifier===lookTouchId) lookTouchId=null;
+});
+document.addEventListener('touchcancel',e=>{
+  for(const t of e.changedTouches) if(t.identifier===lookTouchId) lookTouchId=null;
+});
+
+// Fire button
+const fireBtn=document.getElementById('fire-btn');
+fireBtn.addEventListener('touchstart',e=>{ e.preventDefault(); shoot(); },{passive:false});
+
+// ── POINTER LOCK (desktop 360° mouse look) ──
+document.addEventListener('mousemove', e=>{
+  if(!gameRunning) return;
+  if(document.pointerLockElement === renderer.domElement){
+    yaw   -= e.movementX * 0.0022;
+    pitch -= e.movementY * 0.0022;
+    pitch  = Math.max(-1.1, Math.min(1.1, pitch));
+  }
+});
+
+document.addEventListener('click', e=>{
+  if(!gameRunning) return;
+  const inFS = !!(document.fullscreenElement||document.webkitFullscreenElement||document.mozFullScreenElement);
+  if(!inFS) { enterFullscreen(); return; }
+  // Сначала проверяем нажатие кнопки люка
+  if(hatchBtnMesh && document.pointerLockElement !== renderer.domElement){
+    checkHatchButton(e);
+  }
+  shoot();
+  if(document.pointerLockElement !== renderer.domElement && !('ontouchstart' in window))
+    renderer.domElement.requestPointerLock();
+});
+
+// WASD + Space + ESC + E (кнопка люка)
+const keys={};
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && gameRunning){ endGame(); return; }
+  if((e.key === ' ' || e.key === 'Spacebar') && gameRunning){ e.preventDefault(); shoot(); return; }
+  if((e.key === 'e' || e.key === 'E') && gameRunning){ tryPressHatch(); return; }
+  if(['w','a','s','d','W','A','S','D'].includes(e.key) && gameRunning
+      && document.pointerLockElement !== renderer.domElement) {
+    renderer.domElement.requestPointerLock();
+  }
+  keys[e.key] = true;
+});
+document.addEventListener('keyup', e=>{ keys[e.key] = false; });
+
+// ═══════════════════════════════════════════
+//  HUD HELPERS
+// ═══════════════════════════════════════════
+const scoreVal=document.getElementById('score-val');
+const hpVal   =document.getElementById('hp-val');
+const waveVal =document.getElementById('wave-val');
+const waveAnn =document.getElementById('wave-announce');
+const dmgFlash=document.getElementById('damage-flash');
+
+function updateHUD(){
+  scoreVal.textContent=score;
+  hpVal.textContent=hp;
+  waveVal.textContent=waveNum;
+}
+function flashDamage(){
+  dmgFlash.style.background='rgba(255,0,0,0.45)';
+  setTimeout(()=>dmgFlash.style.background='rgba(255,0,0,0)',200);
+}
+function announceWave(){
+  waveAnn.textContent='ВОЛНА '+waveNum;
+  waveAnn.style.opacity='1';
+  sndWaveStart(waveNum);
+  setTimeout(()=>waveAnn.style.opacity='0',1400);
+}
+
+// ═══════════════════════════════════════════
+//  WAVE SPAWNER
+// ═══════════════════════════════════════════
+function startWave(){
+  if(waveSpawning) return;
+  waveSpawning=true;
+  announceWave();
+  const count=10; // ← КОЛИЧЕСТВО МИКРОБОВ НА ВОЛНЕ (меняй здесь)
+  let spawned=0;
+  const iv=setInterval(()=>{
+    if(!gameRunning){clearInterval(iv); waveSpawning=false; return;}
+    spawnMicrobe(); spawned++;
+    if(spawned>=count){clearInterval(iv); waveSpawning=false;}
+  },350);
+}
+
+// Периодически доспавниваем врагов чтобы комната не пустела
+function keepAlive(){
+  if(!gameRunning) return;
+  if(microbes.length<4 && !waveSpawning){
+    const toSpawn=Math.min(3, 10-microbes.length); // ← не больше 10 вирусов всего
+    for(let i=0;i<toSpawn;i++) spawnMicrobe();
+  }
+  setTimeout(keepAlive, 6000);
+}
+
+// ═══════════════════════════════════════════
+//  GAME LOOP
+// ═══════════════════════════════════════════
+const clock=new THREE.Clock();
+let frameN=0;
+
+function tick(){
+  requestAnimationFrame(tick);
+  if(!gameRunning){ renderer.render(scene,camera); return; }
+
+  const dt=clock.getDelta();
+  frameN++;
+
+  // Camera orientation
+  camera.rotation.order='YXZ';
+  camera.rotation.y=yaw;
+  camera.rotation.x=pitch;
+
+  // Player movement
+  const spd=5*dt;
+  const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw));
+  const rgt=new THREE.Vector3( Math.cos(yaw),0,-Math.sin(yaw));
+  if(jActive){
+    camera.position.addScaledVector(fwd,-jDelta.y*spd);
+    camera.position.addScaledVector(rgt, jDelta.x*spd);
+  }
+  if(keys['w']||keys['ArrowUp'])    camera.position.addScaledVector(fwd,spd);
+  if(keys['s']||keys['ArrowDown'])  camera.position.addScaledVector(fwd,-spd);
+  if(keys['a']||keys['ArrowLeft'])  camera.position.addScaledVector(rgt,-spd);
+  if(keys['d']||keys['ArrowRight']) camera.position.addScaledVector(rgt,spd);
+  // clamp — разрешаем проход через оба люка
+  camera.position.x=Math.max(-20,Math.min(20,camera.position.x));
+  camera.position.z=Math.max(hatchOpen?-25:-20, Math.min(backHatchOpen?25:20, camera.position.z));
+  camera.position.y=1.65;
+
+  // ── Анимация скольжения переднего люка ──
+  if(hatchMesh){
+    const target=hatchOpen?2.2:0;
+    hatchSlide+=(target-hatchSlide)*0.12;
+    hatchMesh.position.x=hatchSlide;
+  }
+  // ── Анимация скольжения заднего люка ──
+  if(backHatchMesh){
+    const target=backHatchOpen?2.2:0;
+    backHatchSlide+=(target-backHatchSlide)*0.12;
+    backHatchMesh.position.x=backHatchSlide;
+  }
+
+  // ── Проход вперёд (север) — следующая карта ──
+  if(hatchOpen && camera.position.z < -23.4 && !waveSpawning){
+    camera.position.set(0,1.65,18); yaw=Math.PI; pitch=0; // появляемся у южной стены лицом внутрь
+    waveNum++; updateHUD();
+    clearLab();
+    try{ buildMap(waveNum); }catch(e){ console.error('buildMap err',e); }
+    renderer.render(scene,camera);
+    [...microbes].forEach(m=>scene.remove(m.mesh)); microbes=[];
+    waveSpawning=false; startWave();
+  }
+  // ── Проход назад (юг) — предыдущая карта ──
+  if(backHatchOpen && camera.position.z > 23.4 && !waveSpawning && waveNum>1){
+    camera.position.set(0,1.65,-18); yaw=0; pitch=0; // появляемся у северной стены лицом внутрь
+    waveNum--; updateHUD();
+    clearLab();
+    try{ buildMap(waveNum); }catch(e){ console.error('buildMap err',e); }
+    renderer.render(scene,camera);
+    [...microbes].forEach(m=>scene.remove(m.mesh)); microbes=[];
+    waveSpawning=false; startWave();
+  }
+
+  // Gun sway + recoil
+  gunSway+=dt;
+  if(gunGroup){
+    gunRecoilZ=Math.max(0,gunRecoilZ-dt*0.8);
+    gunGroup.position.z=-0.32+gunRecoilZ;
+    gunGroup.position.y=-0.14+Math.sin(gunSway*1.8)*0.004;
+    gunGroup.rotation.z=Math.sin(gunSway*1.2)*0.008;
+  }
+
+  // Bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i];
+    b.mesh.position.addScaledVector(b.dir,0.9);
+    b.life--;
+    if(b.life<=0){ scene.remove(b.mesh); bullets.splice(i,1); continue; }
+
+    // Hit microbes
+    let hit=false;
+    for(let j=microbes.length-1;j>=0;j--){
+      const m=microbes[j];
+      if(b.mesh.position.distanceTo(m.mesh.position)<0.75){
+        m.hp--;
+        sndHit();
+        spawnParticles(b.mesh.position, m.color, 8);
+        scene.remove(b.mesh); bullets.splice(i,1); hit=true;
+        if(m.hp<=0){
+          sndKill();
+          spawnParticles(m.mesh.position, m.color, 20);
+          scene.remove(m.mesh); microbes.splice(j,1);
+          score+=10*waveNum*(m.mesh._tier+1);
+          updateHUD();
+        }
+        break;
+      }
+    }
+  }
+
+  // Microbes movement + player collision
+  const t=Date.now()*0.001;
+  for(let i=microbes.length-1;i>=0;i--){
+    const m=microbes[i];
+    const dir2=new THREE.Vector3().subVectors(camera.position,m.mesh.position).setY(0).normalize();
+    m.mesh.position.addScaledVector(dir2,m.speed);
+    m.mesh.position.y=0.55+Math.sin(t*1.8+m.bobOffset)*0.12;
+    m.mesh.rotation.y+=m.rotSpeed;
+    m.mesh.rotation.x+=m.rotSpeed*0.4;
+
+    const d=m.mesh.position.distanceTo(camera.position);
+    if(d<1.3){
+      // Доктор неуязвим — только визуальный/звуковой эффект попадания
+      sndDamage();
+      flashDamage();
+      spawnParticles(m.mesh.position,m.color,10);
+      scene.remove(m.mesh); microbes.splice(i,1);
+    }
+  }
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.mesh.position.add(p.vel);
+    p.vel.y-=0.007;
+    p.life--;
+    p.mesh.material.opacity=p.life/40;
+    if(p.life<=0){ scene.remove(p.mesh); particles.splice(i,1); }
+  }
+
+  // Подсказка: показывать только вблизи кнопки люка
+  const hint=document.getElementById('hatch-hint');
+  if(hint){
+    const btnList=[hatchBtnMesh,backHatchBtnMesh].filter(Boolean);
+    const nearBtn=btnList.some(btn=>camera.position.distanceTo(btn.position)<3.8);
+    hint.style.opacity=nearBtn?'1':'0';
+  }
+  // (враги продолжают спавниться бесконечно пока игрок не уйдёт через люк)
+
+  // Анимация свечения только на 1-й волне
+  if(waveNum===1) labLight1.intensity=1.8+Math.sin(t*1.3)*0.4;
+
+  renderer.render(scene,camera);
+}
+
+// ═══════════════════════════════════════════
+//  FULLSCREEN HELPERS
+// ═══════════════════════════════════════════
+function enterFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+  if (req) req.call(el);
+  if (screen.orientation && screen.orientation.lock) {
+    screen.orientation.lock('landscape').catch(()=>{});
+  }
+}
+function exitFullscreen() {
+  const ex = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+  if (ex) ex.call(document);
+}
+
+// ═══════════════════════════════════════════
+//  GAME CONTROL
+// ═══════════════════════════════════════════
+function startGame(){
+  document.getElementById('start-screen').style.display='none';
+  initAudio();
+  buildLab();
+  createGun();
+  gameRunning=true;
+  enterFullscreen();
+  if(!('ontouchstart' in window)) renderer.domElement.requestPointerLock();
+  startAmbientMusic();
+  startWave();
+  keepAlive();
+  clock.start();
+  tick();
+}
+function endGame(){
+  gameRunning=false;
+  stopAmbientMusic();
+  if(document.pointerLockElement) document.exitPointerLock();
+  exitFullscreen();
+  sndGameOver();
+  document.getElementById('gameover-screen').style.display='flex';
+  document.getElementById('final-score').textContent='СЧЁТ: '+score;
+  document.getElementById('final-wave').textContent='ВОЛНА: '+waveNum;
+}
+function restartGame(){
+  [...microbes].forEach(m=>scene.remove(m.mesh)); microbes=[];
+  [...bullets ].forEach(b=>scene.remove(b.mesh)); bullets=[];
+  [...particles].forEach(p=>scene.remove(p.mesh)); particles=[];
+
+  clearLab();
+  score=0; hp=3; waveNum=1; waveSpawning=false;
+  camera.position.set(0,1.65,0);
+  yaw=0; pitch=0;
+  updateHUD();
+  document.getElementById('gameover-screen').style.display='none';
+  gameRunning=true;
+  buildLab();
+  enterFullscreen();
+  if(!('ontouchstart' in window)) renderer.domElement.requestPointerLock();
+  startAmbientMusic();
+  startWave();
+}
+
+document.getElementById('start-btn').addEventListener('click', startGame);
+document.getElementById('restart-btn').addEventListener('click', restartGame);
+
+// Resize
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+</body>
+</html>
